@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Inspekcja {{ inspection.inspected_at|date:"d.m.Y" }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ inspection.template.get_area_code_display }} — {{ inspection.inspected_at|date:"d.m.Y H:i" }}</h1>
+    <p class="muted">{{ inspection.area_detail }} · zmiana {{ inspection.shift }} · audytor: {{ inspection.inspector }}</p>
+  </div>
+  <div style="display:flex;gap:.6rem;">
+    <span class="badge badge-{{ inspection.status|lower }}">{{ inspection.get_status_display }}</span>
+    <a href="{% url 'inspection_report' inspection.pk %}" class="btn btn-claret btn-sm">Raport / wyślij</a>
+    {% if user.is_admin_role %}<a href="{% url 'inspection_edit' inspection.pk %}" class="btn btn-outline btn-sm">✎ Edytuj</a>{% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="font-size:1.05rem;">Wynik</h2>
+  {% if inspection.result_percent %}
+    <div class="score-bar"><span style="width:{{ inspection.result_percent }}%;"></span></div>
+    <p><strong>{{ inspection.points_total }} / {{ inspection.max_points_total }} pkt ({{ inspection.result_percent }}%)</strong></p>
+  {% endif %}
+  <table class="nice">
+    <thead><tr><th>Zakres wymagań</th><th>Punkty</th><th>Wynik</th></tr></thead>
+    <tbody>
+    {% for r in section_results %}
+      <tr>
+        <td>{{ r.section.label }}. {{ r.section.name }}</td>
+        <td>{{ r.points_awarded }} / {{ r.section.max_points }}</td>
+        <td>{% if r.percent %}{{ r.percent }}%{% else %}—{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h2 style="font-size:1.05rem;">Niezgodności z tej inspekcji ({{ nonconformities|length }})</h2>
+  <table class="nice">
+    <thead><tr><th>Nr</th><th>Punkt</th><th>Opis</th><th>Odpowiedzialny</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for nc in nonconformities %}
+      <tr onclick="window.location='{% url 'nonconformity_detail' nc.pk %}'" style="cursor:pointer;" class="{% if nc.is_due_for_reminder %}row-overdue{% endif %}">
+        <td>{{ nc.number }}</td>
+        <td>{{ nc.checklist_point_label }}</td>
+        <td>{{ nc.description|truncatechars:80 }}</td>
+        <td>{{ nc.responsible_person|default:"—" }}</td>
+        <td><span class="badge badge-{{ nc.status|lower }}">{{ nc.get_status_display }}</span></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5" class="muted">Brak niezgodności — świetny wynik!</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

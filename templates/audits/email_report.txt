@@ -1,0 +1,14 @@
+Raport inspekcji GMP/GHP - {{ inspection.template.get_area_code_display }}
+Data: {{ inspection.inspected_at|date:"d.m.Y H:i" }} | Zmiana: {{ inspection.shift }}
+Obszar: {{ inspection.area_detail }}
+Audytor: {{ inspection.inspector }}
+{% if inspection.result_percent %}Wynik: {{ inspection.points_total }}/{{ inspection.max_points_total }} pkt ({{ inspection.result_percent }}%){% endif %}
+
+CO BYŁO OK:
+{{ inspection.summary_good|default:"—" }}
+
+CO JEST DO POPRAWKI:
+{{ inspection.summary_to_fix|default:"—" }}
+
+Liczba zidentyfikowanych niezgodności: {{ inspection.nonconformity_count }}
+Szczegóły oraz wymagane działania dostępne są w rejestrze niezgodności w systemie Audyty GMP/GHP.

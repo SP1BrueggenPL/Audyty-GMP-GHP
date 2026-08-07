@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Panel{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Panel audytów GMP/GHP</h1>
+    <p>Witaj, {{ user.get_full_name|default:user.username }}. Oto aktualny stan audytów i niezgodności.</p>
+  </div>
+  {% if user.can_run_inspections %}<a href="{% url 'inspection_type_select' %}" class="btn btn-primary">+ Nowa inspekcja</a>{% endif %}
+</div>
+
+<div class="card-grid">
+  <div class="stat-card">
+    <div class="stat-number">{{ inspections_this_month }}</div>
+    <div class="stat-label">Inspekcje w tym miesiącu</div>
+  </div>
+  <div class="stat-card steel">
+    <div class="stat-number">{{ open_ncs_count }}</div>
+    <div class="stat-label">Otwarte niezgodności</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number">{{ overdue_ncs_count }}</div>
+    <div class="stat-label">Przeterminowane (&gt; 7 dni bez uzupełnienia)</div>
+  </div>
+  <div class="stat-card claret">
+    <div class="stat-number">{{ my_open_tasks|length }}</div>
+    <div class="stat-label">Twoje zadania do uzupełnienia</div>
+  </div>
+</div>
+
+{% if user.can_run_inspections %}
+<div class="card">
+  <h2 style="font-size:1.05rem;">Wybierz typ inspekcji</h2>
+  <div class="card-grid">
+    {% for t in templates %}
+    <div class="type-card">
+      <a href="{% url 'inspection_new' t.pk %}" style="display:block;">
+        <div class="code">{{ t.document_code }}</div>
+        <strong>{{ t.get_area_code_display }}</strong>
+        <p class="muted" style="margin:.4rem 0 0;">{{ t.sections.count }} zakresów wymagań · max {{ t.max_points_total }} pkt</p>
+      </a>
+      {% if user.is_admin_role %}
+      <a href="{% url 'checklist_template_edit' t.pk %}" class="btn btn-outline btn-sm" style="margin-top:.6rem;display:inline-block;">✎ Edytuj treść</a>
+      {% endif %}
+    </div>
+    {% empty %}
+    <p class="muted">Brak zdefiniowanych szablonów checklist — dodaj je w panelu admina.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:1.3fr 1fr;gap:1.5rem;align-items:start;">
+  <div class="card">
+    <h2 style="font-size:1.05rem;">Ostatnie inspekcje</h2>
+    <table class="nice">
+      <thead><tr><th>Data</th><th>Obszar</th><th>Audytor</th><th>Wynik</th><th>NC</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for i in recent_inspections %}
+        <tr onclick="window.location='{% url 'inspection_detail' i.pk %}'" style="cursor:pointer;">
+          <td>{{ i.inspected_at|date:"d.m.Y H:i" }}</td>
+          <td>{{ i.area_detail|default:i.template.get_area_code_display }}</td>
+          <td>{{ i.inspector }}</td>
+          <td>{% if i.result_percent %}{{ i.result_percent }}%{% else %}—{% endif %}</td>
+          <td>{{ i.nonconformity_count }}</td>
+          <td><span class="badge badge-{{ i.status|lower }}">{{ i.get_status_display }}</span></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="muted">Brak inspekcji — zacznij od „Nowa inspekcja”.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:1.05rem;">Twoje zadania</h2>
+    {% for nc in my_open_tasks %}
+      <div style="padding:.6rem 0;border-top:1px solid var(--border);">
+        <a href="{% url 'nonconformity_detail' nc.pk %}"><strong>{{ nc.number }}</strong> · {{ nc.get_department_display }}</a>
+        <div class="muted">{{ nc.description|truncatechars:70 }}</div>
+      </div>
+    {% empty %}
+      <p class="muted">Brak niezgodności przypisanych do Ciebie. 🎉</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

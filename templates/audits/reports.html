@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% block title %}Raporty{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Raporty GMP/GHP</h1><p>Podsumowania, wyniki i zestawienia niezgodności.</p></div>
+  <a href="{% url 'reports_export' %}?department={{ current_department }}&year={{ current_year }}" class="btn btn-claret no-print">⬇ Eksportuj do Excela</a>
+</div>
+
+<form method="get" class="card" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:end;">
+  <input type="hidden" name="tab" value="{{ tab }}">
+  <div class="field" style="min-width:180px;">
+    <label>Dział</label>
+    <select name="department" onchange="this.form.submit()">
+      <option value="">Wszystkie</option>
+      {% for value, label in department_choices %}
+      <option value="{{ value }}" {% if current_department == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field" style="min-width:140px;">
+    <label>Rok</label>
+    <select name="year" onchange="this.form.submit()">
+      {% for y in available_years %}
+      <option value="{{ y }}" {% if current_year == y %}selected{% endif %}>{{ y }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+
+<div class="report-tabs no-print">
+  <a href="?tab=przeglad&department={{ current_department }}&year={{ current_year }}" class="{% if tab == 'przeglad' %}active{% endif %}">Przegląd</a>
+  <a href="?tab=wyniki&department={{ current_department }}&year={{ current_year }}" class="{% if tab == 'wyniki' %}active{% endif %}">Wyniki inspekcji</a>
+  <a href="?tab=grupy&department={{ current_department }}&year={{ current_year }}" class="{% if tab == 'grupy' %}active{% endif %}">Niezgodności wg grup</a>
+  <a href="?tab=punkty&department={{ current_department }}&year={{ current_year }}" class="{% if tab == 'punkty' %}active{% endif %}">Niezgodności wg punktów</a>
+</div>
+
+{% if tab == "przeglad" %}
+<div class="card-grid">
+  <div class="stat-card">
+    <div class="stat-number">{{ total_ncs }}</div>
+    <div class="stat-label">Niezgodności w {{ current_year }} r.</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number">{{ overdue_count }}</div>
+    <div class="stat-label">Przeterminowane (bez uzupełnienia)</div>
+  </div>
+  <div class="stat-card claret">
+    <div class="stat-number">{% if avg_days_to_close %}{{ avg_days_to_close }}{% else %}—{% endif %}</div>
+    <div class="stat-label">Śr. liczba dni do wdrożenia działań</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+  <div class="card"><h2 style="font-size:1rem;">Niezgodności wg statusu</h2><canvas id="chart-status" height="220"></canvas></div>
+  <div class="card"><h2 style="font-size:1rem;">Niezgodności wg działu</h2><canvas id="chart-department" height="220"></canvas></div>
+  <div class="card"><h2 style="font-size:1rem;">Top 10 kategorii GMP/GHP</h2><canvas id="chart-category" height="240"></canvas></div>
+  <div class="card"><h2 style="font-size:1rem;">Liczba niezgodności / miesiąc</h2><canvas id="chart-month" height="220"></canvas></div>
+  <div class="card" style="grid-column: span 2;"><h2 style="font-size:1rem;">Średni wynik inspekcji [%] / miesiąc</h2><canvas id="chart-score" height="200"></canvas></div>
+</div>
+
+<div class="card">
+  <h2 style="font-size:1.05rem;">Top 10 lokalizacji z największą liczbą niezgodności</h2>
+  <table class="nice">
+    <thead><tr><th>Lokalizacja</th><th>Liczba niezgodności</th></tr></thead>
+    <tbody>
+    {% for row in top_locations %}
+      <tr><td>{{ row.location_detail }}</td><td>{{ row.total }}</td></tr>
+    {% empty %}
+      <tr><td colspan="2" class="muted">Brak danych dla wybranego okresu.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% elif tab == "wyniki" %}
+<p class="help-text" style="margin-bottom:.5rem;">
+  Średni wynik inspekcji [%] wg działu, zmiany i miesiąca (góra) oraz liczba niezgodności wg kwartału i roku,
+  z porównaniem lat (dół) — odpowiednik arkusza <strong>WYNIKI_2026</strong>.
+</p>
+<div class="score-legend">
+  <span><span class="dot" style="background:#8FA6BC;"></span> ≥ 85% - wynik dobry</span>
+  <span><span class="dot" style="background:var(--gold);"></span> 70-84% - do obserwacji</span>
+  <span><span class="dot" style="background:var(--coral);"></span> &lt; 70% - wymaga uwagi</span>
+</div>
+{% for dept in results_by_department %}
+<div class="card">
+  <h2 style="font-size:1.05rem;">{{ dept.department_label }}</h2>
+  {% if dept.has_score_data %}
+  <div style="overflow-x:auto;">
+  <table class="nice">
+    <thead>
+      <tr>
+        <th>Zmiana</th>
+        {% for m in month_labels %}<th>{{ m }}</th>{% endfor %}
+        <th>Śr. {{ current_year }}</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in dept.shift_rows %}
+      <tr>
+        <td><strong>{{ row.shift }}</strong></td>
+        {% for cell in row.months %}<td class="{{ cell.css }}">{% if cell.value != None %}{{ cell.value }}%{% else %}—{% endif %}</td>{% endfor %}
+        <td class="{{ row.year_avg.css }}"><strong>{% if row.year_avg.value != None %}{{ row.year_avg.value }}%{% else %}—{% endif %}</strong></td>
+      </tr>
+    {% endfor %}
+      <tr>
+        <td colspan="{{ month_labels|length|add:1 }}" style="background:#FBEFEA;"><strong>Średnia dla działu ({{ current_year }})</strong></td>
+        <td class="{{ dept.department_avg.css }}"><strong>{% if dept.department_avg.value != None %}{{ dept.department_avg.value }}%{% else %}—{% endif %}</strong></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted">Brak wyników inspekcji dla tego działu w {{ current_year }} r.</p>
+  {% endif %}
+
+  {% if dept.has_quarter_data %}
+  <h3 class="subhead" style="margin-top:1.25rem;font-size:.95rem;">Liczba niezgodności wg kwartału - porównanie lat</h3>
+  <table class="nice">
+    <thead><tr><th>Rok</th><th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>Suma</th></tr></thead>
+    <tbody>
+    {% for row in dept.quarter_rows %}
+      <tr>
+        <td><strong>{{ row.year }}</strong></td>
+        {% for v in row.q %}<td>{{ v }}</td>{% endfor %}
+        <td><strong>{{ row.total }}</strong></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% empty %}
+<p class="muted">Brak działów do wyświetlenia.</p>
+{% endfor %}
+
+{% elif tab == "grupy" %}
+<p class="help-text" style="margin-bottom:1rem;">
+  Liczba niezgodności wg grup (kategorii GMP/GHP) w podziale na kwartały {{ current_year }} r., z udziałem procentowym —
+  odpowiednik arkuszy <strong>Q1 NC wg grup</strong> / <strong>*_grupy_NC</strong>.
+</p>
+{% for dept in groups_by_department %}
+<div class="card">
+  <h2 style="font-size:1.05rem;">{{ dept.department_label }}</h2>
+  {% if dept.rows %}
+  <table class="nice">
+    <thead><tr><th>Grupa niezgodności</th><th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>Suma</th><th>Udział %</th></tr></thead>
+    <tbody>
+    {% for row in dept.rows %}
+      <tr>
+        <td>{{ row.category }}</td>
+        {% for v in row.q %}<td>{{ v }}</td>{% endfor %}
+        <td><strong>{{ row.total }}</strong></td>
+        <td>{{ row.pct }}%</td>
+      </tr>
+    {% endfor %}
+      <tr style="background:#FBEFEA;">
+        <td><strong>Suma</strong></td>
+        {% for v in dept.totals_row.q %}<td><strong>{{ v }}</strong></td>{% endfor %}
+        <td><strong>{{ dept.totals_row.total }}</strong></td>
+        <td><strong>100%</strong></td>
+      </tr>
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Brak niezgodności dla tego działu w {{ current_year }} r.</p>
+  {% endif %}
+</div>
+{% empty %}
+<p class="muted">Brak działów do wyświetlenia.</p>
+{% endfor %}
+
+{% elif tab == "punkty" %}
+<p class="help-text" style="margin-bottom:1rem;">
+  Ranking punktów checklisty wg liczby niezgodności, w podziale na kwartały {{ current_year }} r. —
+  odpowiednik arkuszy <strong>*_typy_NC</strong> / „podsumowanie kwartalne”.
+</p>
+{% for dept in points_by_department %}
+<div class="card">
+  <h2 style="font-size:1.05rem;">{{ dept.department_label }}</h2>
+  {% if dept.categories %}
+    {% for cat in dept.categories %}
+    <h3 class="subhead" style="margin-top:1rem;font-size:.92rem;">{{ cat.category }} <span class="muted">({{ cat.category_total }})</span></h3>
+    <table class="nice" style="margin-bottom:1rem;">
+      <thead><tr><th>Punkt</th><th>Opis</th><th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>Suma</th></tr></thead>
+      <tbody>
+      {% for p in cat.points %}
+        <tr>
+          <td><strong>{{ p.label }}</strong></td>
+          <td>{{ p.description|truncatechars:70 }}</td>
+          {% for v in p.q %}<td>{{ v }}</td>{% endfor %}
+          <td><strong>{{ p.total }}</strong></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endfor %}
+  {% else %}
+  <p class="muted">Brak niezgodności dla tego działu w {{ current_year }} r.</p>
+  {% endif %}
+</div>
+{% empty %}
+<p class="muted">Brak działów do wyświetlenia.</p>
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if tab == "przeglad" %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+  var DATA = {{ chart_data_json|safe }};
+  var CORAL = "#FF4143", CLARET = "#661C31", GOLD = "#E2BC54", PINK = "#CC6884", STEEL = "#7885A2", CHARCOAL = "#514B51";
+  var PALETTE = [CORAL, CLARET, GOLD, PINK, STEEL, CHARCOAL];
+  Chart.defaults.font.family = "Franklin Gothic Book, Segoe UI, Arial, sans-serif";
+  Chart.defaults.color = CHARCOAL;
+
+  new Chart(document.getElementById("chart-status"), {
+    type: "doughnut",
+    data: { labels: DATA.by_status.labels, datasets: [{ data: DATA.by_status.values, backgroundColor: PALETTE }] },
+  });
+  new Chart(document.getElementById("chart-department"), {
+    type: "bar",
+    data: { labels: DATA.by_department.labels, datasets: [{ data: DATA.by_department.values, backgroundColor: CORAL }] },
+    options: { plugins: { legend: { display: false } } },
+  });
+  new Chart(document.getElementById("chart-category"), {
+    type: "bar",
+    data: { labels: DATA.by_category.labels, datasets: [{ data: DATA.by_category.values, backgroundColor: CLARET }] },
+    options: { indexAxis: "y", plugins: { legend: { display: false } } },
+  });
+  new Chart(document.getElementById("chart-month"), {
+    type: "line",
+    data: { labels: DATA.by_month.labels, datasets: [{ data: DATA.by_month.values, borderColor: CORAL, backgroundColor: "rgba(255,65,67,.15)", fill: true, tension: .3 }] },
+    options: { plugins: { legend: { display: false } } },
+  });
+  new Chart(document.getElementById("chart-score"), {
+    type: "line",
+    data: { labels: DATA.score_trend.labels, datasets: [{ label: "Śr. wynik [%]", data: DATA.score_trend.values, borderColor: CLARET, backgroundColor: "rgba(102,28,49,.12)", fill: true, tension: .3, spanGaps: true }] },
+  });
+</script>
+{% endif %}
+{% endblock %}

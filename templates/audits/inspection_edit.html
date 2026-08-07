@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Edycja inspekcji{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Edycja inspekcji</h1>
+    <p class="muted">{{ inspection.template.get_area_code_display }} · {{ inspection.inspected_at|date:"d.m.Y H:i" }}</p>
+  </div>
+  <a href="{% url 'inspection_detail' inspection.pk %}" class="btn btn-outline btn-sm">← Wróć do inspekcji</a>
+</div>
+
+<p class="help-text" style="margin-bottom:1rem;">
+  Ten formularz pozwala poprawić dane nagłówkowe inspekcji (datę, obszar, audytora, status, podsumowanie).
+  Nie pozwala ponownie zaznaczyć poszczególnych punktów checklisty - do tego służy rejestr niezgodności.
+</p>
+
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="errorlist">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="field-row">
+      <div class="field">{{ form.inspected_at.label_tag }}{{ form.inspected_at }}{{ form.inspected_at.errors }}</div>
+      <div class="field">{{ form.area_detail.label_tag }}{{ form.area_detail }}</div>
+      <div class="field">{{ form.shift.label_tag }}{{ form.shift }}</div>
+    </div>
+    <div class="field-row">
+      <div class="field">{{ form.inspector.label_tag }}{{ form.inspector }}</div>
+      <div class="field">{{ form.status.label_tag }}{{ form.status }}</div>
+    </div>
+    <div class="field">
+      {{ form.area_representatives.label_tag }}{{ form.area_representatives }}
+      <div class="help-text">Przytrzymaj Ctrl (Cmd na Mac), żeby zaznaczyć kilka osób.</div>
+    </div>
+    <div class="field-row">
+      <div class="field">{{ form.lines_working.label_tag }}{{ form.lines_working }}</div>
+      <div class="field">{{ form.lines_not_working_cleaning.label_tag }}{{ form.lines_not_working_cleaning }}</div>
+      <div class="field">{{ form.lines_not_working_stopped.label_tag }}{{ form.lines_not_working_stopped }}</div>
+    </div>
+    <div class="field">{{ form.rooms_checked.label_tag }}{{ form.rooms_checked }}</div>
+    <div class="field">{{ form.summary_good.label_tag }}{{ form.summary_good }}</div>
+    <div class="field">{{ form.summary_to_fix.label_tag }}{{ form.summary_to_fix }}</div>
+    <div class="field">{{ form.report_recipients.label_tag }}{{ form.report_recipients }}</div>
+    <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
+  </form>
+</div>
+
+<div class="card" style="border-color:var(--coral);">
+  <h2 style="font-size:1rem;color:var(--coral);">Strefa niebezpieczna</h2>
+  <p class="help-text">
+    Usunięcie inspekcji skasuje też wszystkie {{ inspection.nonconformity_count }} powiązanych niezgodności
+    (wraz z zapisanymi działaniami i zdjęciami). Tej operacji nie można cofnąć.
+  </p>
+  <form method="post" action="{% url 'inspection_delete' inspection.pk %}" onsubmit="return confirm('Na pewno usunąć tę inspekcję i {{ inspection.nonconformity_count }} powiązanych niezgodności? Tej operacji nie można cofnąć.');">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-outline btn-sm" style="border-color:var(--coral);color:var(--coral);">🗑 Usuń inspekcję</button>
+  </form>
+</div>
+{% endblock %}

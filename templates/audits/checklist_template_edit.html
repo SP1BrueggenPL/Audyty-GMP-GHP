@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Edycja checklisty{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Edycja checklisty</h1>
+    <p class="muted">{{ template_obj.get_area_code_display }}</p>
+  </div>
+  <a href="{% url 'inspection_type_select' %}" class="btn btn-outline btn-sm">← Wróć</a>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="card">
+    <h2 style="font-size:1.05rem;">Dane szablonu</h2>
+    <div class="field-row">
+      <div class="field">{{ meta_form.name.label_tag }}{{ meta_form.name }}</div>
+      <div class="field">{{ meta_form.document_code.label_tag }}{{ meta_form.document_code }}</div>
+      <div class="field">{{ meta_form.version_note.label_tag }}{{ meta_form.version_note }}</div>
+    </div>
+    <div class="field" style="display:flex;align-items:center;gap:.5rem;">
+      <input type="checkbox" id="{{ meta_form.is_active.id_for_label }}" name="{{ meta_form.is_active.html_name }}" {% if meta_form.is_active.value %}checked{% endif %} style="width:auto;">
+      <label for="{{ meta_form.is_active.id_for_label }}" style="margin:0;">Szablon aktywny (widoczny do wyboru przy nowej inspekcji)</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:1.05rem;">Zakresy wymagań (sekcje)</h2>
+    <p class="help-text">Zmień nazwę/liczbę punktów, dodaj nową sekcję przyciskiem poniżej albo zaznacz „Usuń”, żeby ją skasować wraz z podsekcjami i punktami.</p>
+    {{ formset.management_form }}
+    {% if formset.non_form_errors %}<div class="errorlist">{{ formset.non_form_errors }}</div>{% endif %}
+    <table class="nice">
+      <thead><tr><th>Kolejność</th><th>Etykieta</th><th>Nazwa</th><th>Max pkt</th><th>Punkty →</th><th>Usuń</th></tr></thead>
+      <tbody id="sections-tbody">
+      {% for form in formset %}
+        <tr>
+          {{ form.id }}
+          <td>{{ form.order }}{{ form.order.errors }}</td>
+          <td>{{ form.label }}{{ form.label.errors }}</td>
+          <td>{{ form.name }}{{ form.name.errors }}</td>
+          <td>{{ form.max_points }}{{ form.max_points.errors }}</td>
+          <td><a href="{% url 'checklist_section_edit' form.instance.pk %}" class="btn btn-outline btn-sm">Podsekcje/punkty</a></td>
+          <td><label style="display:flex;justify-content:center;">{{ form.DELETE }}</label></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <button type="button" id="add-section-row" class="btn btn-outline btn-sm" style="margin-top:.75rem;">+ Dodaj sekcję</button>
+  </div>
+
+  <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
+</form>
+
+<template id="empty-section-row">
+  <tr>
+    {{ formset.empty_form.id }}
+    <td>{{ formset.empty_form.order }}</td>
+    <td>{{ formset.empty_form.label }}</td>
+    <td>{{ formset.empty_form.name }}</td>
+    <td>{{ formset.empty_form.max_points }}</td>
+    <td><span class="muted">zapisz, aby dodać</span></td>
+    <td></td>
+  </tr>
+</template>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static 'js/formset_add.js' %}"></script>
+<script>wireFormsetAdd("add-section-row", "empty-section-row", "sections-tbody", "sections-TOTAL_FORMS");</script>
+{% endblock %}

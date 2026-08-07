@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{% if is_new %}Nowy użytkownik{% else %}Edycja użytkownika{% endif %}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{% if is_new %}Nowy użytkownik{% else %}Edycja: {{ user_obj }}{% endif %}</h1>
+    <p class="muted">Logowanie odbywa się wyłącznie 5-cyfrowym numerem chipa - bez hasła.</p>
+  </div>
+  <a href="{% url 'user_list' %}" class="btn btn-outline btn-sm">← Wróć do listy</a>
+</div>
+
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="errorlist">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="field-row">
+      <div class="field">
+        {{ form.username.label_tag }}{{ form.username }}
+        <div class="help-text">{{ form.username.help_text }}</div>
+        {{ form.username.errors }}
+      </div>
+      <div class="field">
+        {{ form.full_name.label_tag }}{{ form.full_name }}
+        {{ form.full_name.errors }}
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">{{ form.role.label_tag }}{{ form.role }}</div>
+      <div class="field">{{ form.department.label_tag }}{{ form.department }}</div>
+      <div class="field">{{ form.shift.label_tag }}{{ form.shift }}<div class="help-text">{{ form.shift.help_text }}</div></div>
+    </div>
+    <div class="field-row">
+      <div class="field" style="display:flex;align-items:center;gap:.5rem;">
+        <input type="checkbox" id="{{ form.receives_escalations.id_for_label }}" name="{{ form.receives_escalations.html_name }}" {% if form.receives_escalations.value %}checked{% endif %} style="width:auto;">
+        <label for="{{ form.receives_escalations.id_for_label }}" style="margin:0;">{{ form.receives_escalations.label }}</label>
+      </div>
+      <div class="field" style="display:flex;align-items:center;gap:.5rem;">
+        <input type="checkbox" id="{{ form.is_active.id_for_label }}" name="{{ form.is_active.html_name }}" {% if form.is_active.value %}checked{% endif %} style="width:auto;">
+        <label for="{{ form.is_active.id_for_label }}" style="margin:0;">Konto aktywne</label>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">{% if is_new %}Utwórz użytkownika{% else %}Zapisz zmiany{% endif %}</button>
+  </form>
+</div>
+
+{% if not is_new %}
+<div class="card" style="border-color:var(--coral);">
+  <h2 style="font-size:1rem;color:var(--coral);">Strefa niebezpieczna</h2>
+  <p class="help-text">
+    Usunięcie konta jest nieodwracalne. Jeśli osoba ma powiązane inspekcje lub niezgodności,
+    usunięcie się nie powiedzie - zamiast tego odznacz „Konto aktywne” powyżej.
+  </p>
+  <form method="post" action="{% url 'user_delete' user_obj.pk %}" onsubmit="return confirm('Na pewno usunąć użytkownika {{ user_obj }}? Tej operacji nie można cofnąć.');">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-outline btn-sm" style="border-color:var(--coral);color:var(--coral);">🗑 Usuń użytkownika</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

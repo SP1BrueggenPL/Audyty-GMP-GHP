@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Logowanie{% endblock %}
+{% block content %}
+<div style="max-width:380px;margin:4rem auto;">
+  <div class="card">
+    <h1 style="text-align:center;">Audyty GMP/GHP</h1>
+    <p class="muted" style="text-align:center;margin-bottom:1.5rem;">Zaloguj się, aby przejść do panelu audytów</p>
+    <form method="post">
+      {% csrf_token %}
+      {% if form.errors %}<div class="messages"><li class="error" style="list-style:none;padding:.5rem 1rem;border-radius:10px;">Nieprawidłowa nazwa użytkownika lub hasło.</li></div>{% endif %}
+      <div class="field">
+        <label for="id_username">Login</label>
+        <input type="text" name="username" id="id_username" required autofocus>
+      </div>
+      <div class="field">
+        <label for="id_password">Hasło</label>
+        <input type="password" name="password" id="id_password" required>
+      </div>
+      <input type="hidden" name="next" value="{{ next }}">
+      <button type="submit" class="btn btn-primary" style="width:100%;">Zaloguj</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

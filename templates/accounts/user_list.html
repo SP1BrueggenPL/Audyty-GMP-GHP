@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Użytkownicy{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Użytkownicy</h1><p>Zarządzanie kontami, rolami i przypisaniem do zmian.</p></div>
+  <a href="{% url 'user_new' %}" class="btn btn-primary">+ Nowy użytkownik</a>
+</div>
+
+<form method="get" class="card" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:end;">
+  <div class="field" style="min-width:220px;">
+    <label>Rola</label>
+    <select name="role" onchange="this.form.submit()">
+      <option value="">Wszystkie</option>
+      {% for value, label in role_choices %}
+      <option value="{{ value }}" {% if current_role == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+
+<div class="card" style="padding:0;overflow:auto;">
+<table class="nice">
+  <thead>
+    <tr><th>Login</th><th>Imię i nazwisko</th><th>Rola</th><th>Dział</th><th>Zmiana</th><th>Aktywny</th><th>Eskalacje</th><th>Akcje</th></tr>
+  </thead>
+  <tbody>
+  {% for u in users %}
+    <tr onclick="window.location='{% url 'user_edit' u.pk %}'" style="cursor:pointer;">
+      <td>{{ u.username }}</td>
+      <td>{{ u.get_full_name|default:"—" }}</td>
+      <td>{{ u.get_role_display }}</td>
+      <td>{{ u.get_department_display|default:"—" }}</td>
+      <td>{{ u.shift|default:"—" }}</td>
+      <td>{% if u.is_active %}<span class="badge badge-wdrozone">Tak</span>{% else %}<span class="badge badge-anulowane">Nie</span>{% endif %}</td>
+      <td>{% if u.receives_escalations %}✓{% else %}—{% endif %}</td>
+      <td class="actions-cell" onclick="event.stopPropagation();">
+        <a href="{% url 'user_edit' u.pk %}" class="btn btn-outline btn-sm">✎ Edytuj</a>
+        <form method="post" action="{% url 'user_delete' u.pk %}" style="display:inline;" onsubmit="return confirm('Na pewno usunąć użytkownika {{ u }}? Tej operacji nie można cofnąć.');">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline btn-sm btn-danger">🗑 Usuń</button>
+        </form>
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="8" class="muted">Brak użytkowników spełniających kryteria.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

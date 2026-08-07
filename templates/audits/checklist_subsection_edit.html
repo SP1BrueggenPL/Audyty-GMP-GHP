@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Edycja punktów{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ subsection.number }}. {{ subsection.name }}</h1>
+    <p class="muted">{{ subsection.section.template.get_area_code_display }} · {{ subsection.section.label }}. {{ subsection.section.name }}</p>
+  </div>
+  <a href="{% url 'checklist_section_edit' subsection.section.pk %}" class="btn btn-outline btn-sm">← Wróć do podsekcji</a>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="card">
+    <h2 style="font-size:1.05rem;">Punkty kontrolne</h2>
+    <p class="help-text">Zmień treść/numer punktu, dodaj nowy przyciskiem poniżej albo zaznacz „Usuń”, żeby go skasować.</p>
+    {{ formset.management_form }}
+    {% if formset.non_form_errors %}<div class="errorlist">{{ formset.non_form_errors }}</div>{% endif %}
+    <table class="nice">
+      <thead><tr><th>Kolejność</th><th>Numer</th><th>Opis wymagania</th><th>Usuń</th></tr></thead>
+      <tbody id="items-tbody">
+      {% for form in formset %}
+        <tr>
+          {{ form.id }}
+          <td>{{ form.order }}{{ form.order.errors }}</td>
+          <td>{{ form.number }}{{ form.number.errors }}</td>
+          <td>{{ form.description }}{{ form.description.errors }}</td>
+          <td><label style="display:flex;justify-content:center;">{{ form.DELETE }}</label></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <button type="button" id="add-item-row" class="btn btn-outline btn-sm" style="margin-top:.75rem;">+ Dodaj punkt</button>
+  </div>
+  <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
+</form>
+
+<template id="empty-item-row">
+  <tr>
+    {{ formset.empty_form.id }}
+    <td>{{ formset.empty_form.order }}</td>
+    <td>{{ formset.empty_form.number }}</td>
+    <td>{{ formset.empty_form.description }}</td>
+    <td></td>
+  </tr>
+</template>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static 'js/formset_add.js' %}"></script>
+<script>wireFormsetAdd("add-item-row", "empty-item-row", "items-tbody", "items-TOTAL_FORMS");</script>
+{% endblock %}

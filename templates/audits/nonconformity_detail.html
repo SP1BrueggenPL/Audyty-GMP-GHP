@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Niezgodność {{ nc.number }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Niezgodność {{ nc.number }}</h1>
+    <p class="muted">{{ nc.get_department_display }} · {{ nc.inspection_date|date:"d.m.Y" }} · zmiana {{ nc.shift }}
+      {% if nc.inspection %} · <a href="{% url 'inspection_detail' nc.inspection.pk %}">powiązana inspekcja</a>{% endif %}</p>
+  </div>
+  <span class="badge badge-{{ nc.status|lower }}">{{ nc.get_status_display }}</span>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start;">
+  <div>
+    <div class="card">
+      <h2 style="font-size:1rem;">Wypełnia osoba przeprowadzająca inspekcję</h2>
+      {% if is_admin %}
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_admin_fields">
+        <div class="field-row">
+          <div class="field">{{ admin_form.inspection_date.label_tag }}{{ admin_form.inspection_date }}</div>
+          <div class="field">{{ admin_form.department.label_tag }}{{ admin_form.department }}</div>
+          <div class="field">{{ admin_form.shift.label_tag }}{{ admin_form.shift }}</div>
+        </div>
+        <div class="field-row">
+          <div class="field">{{ admin_form.gmp_category.label_tag }}{{ admin_form.gmp_category }}</div>
+          <div class="field">{{ admin_form.checklist_point_label.label_tag }}{{ admin_form.checklist_point_label }}</div>
+          <div class="field">{{ admin_form.location_detail.label_tag }}{{ admin_form.location_detail }}</div>
+        </div>
+        <div class="field">{{ admin_form.point_description.label_tag }}{{ admin_form.point_description }}</div>
+        <div class="field">{{ admin_form.description.label_tag }}{{ admin_form.description }}</div>
+        <div class="field">{{ admin_form.area_representative.label_tag }}{{ admin_form.area_representative }}</div>
+        <p class="muted">Audytor: {{ nc.inspector }} (nie do zmiany tutaj)</p>
+        <button type="submit" class="btn btn-outline btn-sm">Zapisz dane</button>
+      </form>
+      {% else %}
+      <p><strong>Punkt checklisty:</strong> {{ nc.checklist_point_label|default:"brak punktu" }} — {{ nc.gmp_category }}</p>
+      <p><strong>Opis punktu:</strong> {{ nc.point_description|default:"—" }}</p>
+      <p><strong>Lokalizacja:</strong> {{ nc.location_detail|default:"—" }}</p>
+      <p><strong>Opis niezgodności:</strong><br>{{ nc.description|linebreaksbr }}</p>
+      <p><strong>Audytor:</strong> {{ nc.inspector }} · <strong>Przedstawiciel obszaru:</strong> {{ nc.area_representative|default:"—" }}</p>
+      {% endif %}
+
+      {% if nc.photos.all %}
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.75rem;">
+        {% for p in nc.photos.all %}
+          {% if p.kind == "NIEZGODNOSC" %}<a href="{{ p.image.url }}" target="_blank"><img src="{{ p.image.url }}" style="height:120px;border-radius:10px;object-fit:cover;"></a>{% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2 style="font-size:1rem;">Status i przypisanie (audytor)</h2>
+      {% if can_edit_auditor %}
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_auditor">
+        <div class="field">{{ auditor_form.responsible_person.label_tag }}{{ auditor_form.responsible_person }}</div>
+        <div class="field">{{ auditor_form.status.label_tag }}{{ auditor_form.status }}</div>
+        <div class="field">{{ auditor_form.auditor_comment.label_tag }}{{ auditor_form.auditor_comment }}</div>
+        <button type="submit" class="btn btn-claret btn-sm">Zapisz</button>
+      </form>
+      {% else %}
+      <p><strong>Osoba odpowiedzialna:</strong> {{ nc.responsible_person|default:"nie przypisano" }}</p>
+      <p><strong>Uwagi audytora:</strong> {{ nc.auditor_comment|default:"—" }}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <h2 style="font-size:1rem;">Wypełnia osoba odpowiedzialna za obszar</h2>
+      {% if not nc.responsible_person %}
+        <p class="muted">Niezgodność nie ma jeszcze przypisanej osoby odpowiedzialnej.</p>
+      {% elif can_edit_responsible %}
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_responsible">
+        <div class="field">{{ responsible_form.root_cause.label_tag }}{{ responsible_form.root_cause }}</div>
+        <div class="field">{{ responsible_form.corrective_action.label_tag }}{{ responsible_form.corrective_action }}</div>
+        <div class="field">{{ responsible_form.corrective_action_date.label_tag }}{{ responsible_form.corrective_action_date }}</div>
+        <div class="field">{{ responsible_form.preventive_action.label_tag }}{{ responsible_form.preventive_action }}</div>
+        <div class="field-row">
+          <div class="field">{{ responsible_form.planned_preventive_date.label_tag }}{{ responsible_form.planned_preventive_date }}</div>
+          <div class="field">{{ responsible_form.actual_preventive_date.label_tag }}{{ responsible_form.actual_preventive_date }}</div>
+        </div>
+        <div class="field">
+          <label>Dowody podjętych działań (zdjęcie naprawy, lista obecności ze szkolenia...)</label>
+          <input type="file" name="evidence_photos" accept="image/*" multiple>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Zapisz działania</button>
+      </form>
+      {% else %}
+        <p class="muted">Tylko {{ nc.responsible_person }} lub administrator może uzupełnić tę część.</p>
+      {% endif %}
+
+      {% if nc.root_cause %}
+      <div style="margin-top:1rem;border-top:1px solid var(--border);padding-top:1rem;">
+        <p><strong>Źródło problemu:</strong> {{ nc.root_cause }}</p>
+        <p><strong>Działania korekcyjne:</strong> {{ nc.corrective_action }} {% if nc.corrective_action_date %}({{ nc.corrective_action_date|date:"d.m.Y" }}){% endif %}</p>
+        <p><strong>Działania korygujące:</strong> {{ nc.preventive_action }}</p>
+        <p><strong>Planowana data:</strong> {{ nc.planned_preventive_date|date:"d.m.Y"|default:"—" }} · <strong>Faktyczna data:</strong> {{ nc.actual_preventive_date|date:"d.m.Y"|default:"—" }}</p>
+      </div>
+      {% endif %}
+
+      {% with evidence=nc.photos.all %}
+      {% for p in evidence %}
+        {% if p.kind == "DOWOD" %}
+        {% if forloop.first %}<div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.75rem;">{% endif %}
+        <a href="{{ p.image.url }}" target="_blank"><img src="{{ p.image.url }}" style="height:120px;border-radius:10px;object-fit:cover;"></a>
+        {% if forloop.last %}</div>{% endif %}
+        {% endif %}
+      {% endfor %}
+      {% endwith %}
+    </div>
+  </div>
+</div>
+
+{% if is_admin %}
+<div class="card" style="border-color:var(--coral);">
+  <h2 style="font-size:1rem;color:var(--coral);">Strefa niebezpieczna</h2>
+  <p class="help-text">Usunięcie niezgodności jest nieodwracalne (wraz ze zdjęciami i zapisanymi działaniami).</p>
+  <form method="post" action="{% url 'nonconformity_delete' nc.pk %}" onsubmit="return confirm('Na pewno usunąć niezgodność {{ nc.number }}? Tej operacji nie można cofnąć.');">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-outline btn-sm" style="border-color:var(--coral);color:var(--coral);">🗑 Usuń niezgodność</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

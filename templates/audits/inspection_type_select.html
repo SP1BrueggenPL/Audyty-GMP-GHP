@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Nowa inspekcja{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Nowa inspekcja GMP/GHP</h1><p>Wybierz typ checklisty, którą chcesz wypełnić.</p></div>
+</div>
+<div class="card-grid">
+  {% for t in templates %}
+  <div class="type-card">
+    <a href="{% url 'inspection_new' t.pk %}" style="display:block;">
+      <div class="code">{{ t.document_code }}</div>
+      <strong style="font-size:1.05rem;">{{ t.name }}</strong>
+      <p class="muted" style="margin:.5rem 0 0;">{{ t.sections.count }} zakresów wymagań · max {{ t.max_points_total }} pkt</p>
+    </a>
+    {% if user.is_admin_role %}
+    <a href="{% url 'checklist_template_edit' t.pk %}" class="btn btn-outline btn-sm" style="margin-top:.75rem;display:inline-block;">✎ Edytuj treść checklisty</a>
+    {% endif %}
+  </div>
+  {% empty %}
+  <p class="muted">Brak zdefiniowanych szablonów checklist.</p>
+  {% endfor %}
+</div>
+{% endblock %}

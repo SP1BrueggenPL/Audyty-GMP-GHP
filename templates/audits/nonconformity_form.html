@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Nowa niezgodność{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Dodaj niezgodność</h1><p>Formularz dla niezgodności znalezionej poza pełną inspekcją checklistową.</p></div>
+</div>
+<div class="card">
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="field-row">
+      <div class="field">{{ form.inspection_date.label_tag }}{{ form.inspection_date }}</div>
+      <div class="field">{{ form.department.label_tag }}{{ form.department }}</div>
+      <div class="field">{{ form.shift.label_tag }}{{ form.shift }}</div>
+    </div>
+    <p class="help-text">Osoba przeprowadzająca inspekcję: <strong>{{ request.user.get_full_name|default:request.user.username }}</strong> (zalogowany użytkownik).</p>
+    <div class="field-row">
+      <div class="field">{{ form.area_representative.label_tag }}{{ form.area_representative }}</div>
+      <div class="field">{{ form.responsible_person.label_tag }}{{ form.responsible_person }}</div>
+    </div>
+    <div class="field-row">
+      <div class="field">{{ form.gmp_category.label_tag }}{{ form.gmp_category }}</div>
+      <div class="field">{{ form.checklist_point_label.label_tag }}{{ form.checklist_point_label }}</div>
+      <div class="field">{{ form.location_detail.label_tag }}{{ form.location_detail }}</div>
+    </div>
+    <div class="field">{{ form.point_description.label_tag }}{{ form.point_description }}</div>
+    <div class="field">{{ form.description.label_tag }}{{ form.description }}</div>
+    <div class="field">
+      <label>Zdjęcia</label>
+      <input type="file" name="photos" accept="image/*" multiple>
+    </div>
+    <button type="submit" class="btn btn-primary">Zapisz niezgodność</button>
+  </form>
+</div>
+{% endblock %}

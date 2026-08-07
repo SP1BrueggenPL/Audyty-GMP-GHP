@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Edycja sekcji{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ section.label }}. {{ section.name }}</h1>
+    <p class="muted">{{ section.template.get_area_code_display }} · max {{ section.max_points }} pkt</p>
+  </div>
+  <a href="{% url 'checklist_template_edit' section.template.pk %}" class="btn btn-outline btn-sm">← Wróć do sekcji</a>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="card">
+    <h2 style="font-size:1.05rem;">Podsekcje</h2>
+    <p class="help-text">Zmień nazwę/numer, dodaj nową podsekcję przyciskiem poniżej albo zaznacz „Usuń”, żeby ją skasować wraz z punktami.</p>
+    {{ formset.management_form }}
+    {% if formset.non_form_errors %}<div class="errorlist">{{ formset.non_form_errors }}</div>{% endif %}
+    <table class="nice">
+      <thead><tr><th>Kolejność</th><th>Numer</th><th>Nazwa</th><th>Punkty →</th><th>Usuń</th></tr></thead>
+      <tbody id="subsections-tbody">
+      {% for form in formset %}
+        <tr>
+          {{ form.id }}
+          <td>{{ form.order }}{{ form.order.errors }}</td>
+          <td>{{ form.number }}{{ form.number.errors }}</td>
+          <td>{{ form.name }}{{ form.name.errors }}</td>
+          <td><a href="{% url 'checklist_subsection_edit' form.instance.pk %}" class="btn btn-outline btn-sm">Punkty</a></td>
+          <td><label style="display:flex;justify-content:center;">{{ form.DELETE }}</label></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <button type="button" id="add-subsection-row" class="btn btn-outline btn-sm" style="margin-top:.75rem;">+ Dodaj podsekcję</button>
+  </div>
+  <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
+</form>
+
+<template id="empty-subsection-row">
+  <tr>
+    {{ formset.empty_form.id }}
+    <td>{{ formset.empty_form.order }}</td>
+    <td>{{ formset.empty_form.number }}</td>
+    <td>{{ formset.empty_form.name }}</td>
+    <td><span class="muted">zapisz, aby dodać</span></td>
+    <td></td>
+  </tr>
+</template>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static 'js/formset_add.js' %}"></script>
+<script>wireFormsetAdd("add-subsection-row", "empty-subsection-row", "subsections-tbody", "subsections-TOTAL_FORMS");</script>
+{% endblock %}

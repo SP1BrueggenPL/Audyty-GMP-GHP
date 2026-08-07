@@ -1,0 +1,53 @@
+{% load static %}<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Audyty GMP/GHP{% endblock %} · Brüggen Polska</title>
+<link rel="stylesheet" href="{% static 'css/brand.css' %}?v={% now 'U' %}">
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+{% if user.is_authenticated %}
+<div class="topbar no-print">
+  <div class="brand"><span class="mark">B</span> Audyty GMP/GHP</div>
+  <nav>
+    <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Panel</a>
+    <a href="{% url 'inspection_list' %}" class="{% if request.resolver_match.url_name == 'inspection_list' or request.resolver_match.url_name == 'inspection_detail' or request.resolver_match.url_name == 'inspection_edit' %}active{% endif %}">Rejestr inspekcji</a>
+    {% if user.can_run_inspections %}
+    <a href="{% url 'inspection_type_select' %}" class="{% if request.resolver_match.url_name == 'inspection_type_select' or request.resolver_match.url_name == 'inspection_new' %}active{% endif %}">Nowa inspekcja</a>
+    {% endif %}
+    <a href="{% url 'nonconformity_list' %}" class="{% if 'nonconformity' in request.resolver_match.url_name %}active{% endif %}">Rejestr niezgodności</a>
+    {% if user.has_full_access %}
+    <a href="{% url 'reports_dashboard' %}" class="{% if request.resolver_match.url_name == 'reports_dashboard' %}active{% endif %}">Raporty</a>
+    {% endif %}
+    {% if user.is_admin_role %}
+    <a href="{% url 'user_list' %}" class="{% if request.resolver_match.url_name == 'user_list' or request.resolver_match.url_name == 'user_new' or request.resolver_match.url_name == 'user_edit' %}active{% endif %}">Użytkownicy</a>
+    {% endif %}
+    {% if user.is_staff %}<a href="{% url 'admin:index' %}">Admin</a>{% endif %}
+  </nav>
+  <div class="user-chip">
+    {{ user.get_full_name|default:user.username }} <span class="muted" style="color:#f4dede;">({{ user.get_role_display }})</span> ·
+    <form method="post" action="{% url 'logout' %}" style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" class="link-button">Wyloguj</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="container">
+  {% if messages %}
+  <ul class="messages">
+    {% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% block content %}{% endblock %}
+</div>
+
+<footer class="app-footer no-print">
+  Wewnętrzny system audytów GMP/GHP · H. &amp; J. Brüggen KG · dane wyłącznie do celów służbowych
+</footer>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

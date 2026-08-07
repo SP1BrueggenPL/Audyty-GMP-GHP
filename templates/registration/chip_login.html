@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Logowanie{% endblock %}
+{% block content %}
+<div style="max-width:420px;margin:8vh auto;text-align:center;">
+  <div class="card" style="padding:2.5rem 2rem;">
+    <div class="mark" style="display:inline-block;background:var(--coral);color:#fff;border-radius:12px;padding:.3rem .8rem;font-family:var(--font-heading);font-size:1.4rem;margin-bottom:.75rem;">B</div>
+    <h1 style="font-size:1.3rem;">Audyty GMP/GHP</h1>
+    <p class="muted" style="margin-bottom:1.75rem;">Wpisz swój numer, aby się zalogować</p>
+
+    <form method="post" id="chip-form">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <input
+        type="text"
+        name="chip_code"
+        id="chip_code"
+        autocomplete="off"
+        autofocus
+        inputmode="numeric"
+        placeholder="Twój numer"
+        style="text-align:center;font-size:1.6rem;font-family:var(--font-heading);letter-spacing:.15em;padding:1rem;margin-bottom:1rem;">
+      <button type="submit" class="btn btn-primary" style="width:100%;">Zaloguj</button>
+    </form>
+
+    <a href="{% url 'login' %}" class="btn btn-outline btn-sm" style="margin-top:1.25rem;">Zaloguj loginem i hasłem (administrator)</a>
+  </div>
+</div>
+{% endblock %}

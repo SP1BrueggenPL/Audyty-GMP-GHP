@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Raport inspekcji{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Raport inspekcji GMP/GHP</h1>
+    <p class="muted">{{ inspection.template.get_area_code_display }} · {{ inspection.area_detail }} · {{ inspection.inspected_at|date:"d.m.Y H:i" }} · zmiana {{ inspection.shift }}</p>
+  </div>
+  <button onclick="window.print()" class="btn btn-outline no-print">Drukuj / zapisz PDF</button>
+</div>
+
+<div class="card">
+  <p><strong>Osoba przeprowadzająca inspekcję:</strong> {{ inspection.inspector }}</p>
+  <p><strong>Przedstawiciele obszaru:</strong> {{ inspection.area_representatives_display|default:"—" }}</p>
+  {% if inspection.result_percent %}<p><strong>Wynik ogólny:</strong> {{ inspection.points_total }} / {{ inspection.max_points_total }} pkt ({{ inspection.result_percent }}%)</p>{% endif %}
+</div>
+
+<div class="card">
+  <table class="nice">
+    <thead><tr><th>Zakres wymagań</th><th>Punkty</th><th>Wynik</th></tr></thead>
+    <tbody>
+    {% for r in section_results %}
+      <tr><td>{{ r.section.label }}. {{ r.section.name }}</td><td>{{ r.points_awarded }} / {{ r.section.max_points }}</td><td>{% if r.percent %}{{ r.percent }}%{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h2 style="font-size:1.05rem;">Zidentyfikowane niezgodności</h2>
+  {% for nc in nonconformities %}
+    <div style="border-top:1px solid var(--border);padding:.9rem 0;">
+      <strong>{{ nc.number }} · {{ nc.checklist_point_label }} — {{ nc.gmp_category }}</strong>
+      <p style="margin:.3rem 0;">{{ nc.location_detail }}{% if nc.location_detail %} — {% endif %}{{ nc.description }}</p>
+      {% if nc.photos.all %}
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+        {% for p in nc.photos.all %}<img src="{{ p.image.url }}" style="height:110px;border-radius:8px;object-fit:cover;">{% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  {% empty %}
+    <p class="muted">Brak niezgodności.</p>
+  {% endfor %}
+</div>
+
+<div class="card no-print">
+  <h2 style="font-size:1.05rem;">Podsumowanie i wysyłka raportu</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="field">{{ form.summary_good.label_tag }}{{ form.summary_good }}</div>
+    <div class="field">{{ form.summary_to_fix.label_tag }}{{ form.summary_to_fix }}</div>
+    <div class="field">{{ form.report_recipients.label_tag }}{{ form.report_recipients }}</div>
+    <button type="submit" class="btn btn-primary">Zapisz i wyślij raport</button>
+  </form>
+</div>
+
+{% if inspection.summary_good or inspection.summary_to_fix %}
+<div class="card">
+  <h3 class="subhead">Co było ok</h3>
+  <p>{{ inspection.summary_good|linebreaksbr|default:"—" }}</p>
+  <h3 class="subhead">Co jest do poprawki</h3>
+  <p>{{ inspection.summary_to_fix|linebreaksbr|default:"—" }}</p>
+</div>
+{% endif %}
+{% endblock %}

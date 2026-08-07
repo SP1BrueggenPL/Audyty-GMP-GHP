@@ -1,0 +1,14 @@
+Dzień dobry,
+
+Niezgodność {{ nc.number }} ({{ nc.get_department_display }}, {{ nc.inspection_date|date:"d.m.Y" }})
+jest otwarta od {{ nc.days_open }} dni i nie została uzupełniona przez osobę odpowiedzialną
+({{ nc.responsible_person }}) mimo wcześniejszych przypomnień ({{ nc.reminder_count }}).
+
+Opis niezgodności: {{ nc.description }}
+Lokalizacja: {{ nc.location_detail|default:"—" }}
+Audytor: {{ nc.inspector }}
+
+Sprawa wymaga interwencji.
+
+Pozdrawiamy,
+Zespół audytów GMP/GHP

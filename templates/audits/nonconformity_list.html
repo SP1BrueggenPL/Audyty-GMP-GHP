@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Rejestr niezgodności{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Rejestr niezgodności GMP/GHP</h1><p>Cyfrowy odpowiednik arkusza „Niezgodności GMP/GHP”.</p></div>
+  <a href="{% url 'nonconformity_new' %}" class="btn btn-primary">+ Dodaj niezgodność</a>
+</div>
+
+<form method="get" class="card" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:end;">
+  <div class="field" style="min-width:160px;">
+    <label>Status</label>
+    <select name="status" onchange="this.form.submit()">
+      <option value="">Wszystkie</option>
+      {% for value, label in status_choices %}
+      <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field" style="min-width:160px;">
+    <label>Zakres</label>
+    <select name="scope" onchange="this.form.submit()">
+      <option value="">Wszystkie</option>
+      <option value="mine" {% if current_scope == "mine" %}selected{% endif %}>Przypisane do mnie</option>
+      <option value="overdue" {% if current_scope == "overdue" %}selected{% endif %}>Przeterminowane</option>
+    </select>
+  </div>
+  <noscript><button type="submit" class="btn btn-outline btn-sm">Filtruj</button></noscript>
+</form>
+
+<div class="card" style="padding:0;overflow:auto;">
+<table class="nice">
+  <thead>
+    <tr><th>Nr</th><th>Data</th><th>Obszar</th><th>Opis</th><th>Odpowiedzialny</th><th>Status</th><th>Dni otwarte</th><th>Akcje</th></tr>
+  </thead>
+  <tbody>
+  {% for nc in nonconformities %}
+    <tr onclick="window.location='{% url 'nonconformity_detail' nc.pk %}'" style="cursor:pointer;" class="{% if nc.is_due_for_reminder %}row-overdue{% endif %}">
+      <td>{{ nc.number }}</td>
+      <td>{{ nc.inspection_date|date:"d.m.Y" }}</td>
+      <td>{{ nc.get_department_display }}</td>
+      <td>{{ nc.description|truncatechars:70 }}</td>
+      <td>{{ nc.responsible_person|default:"—" }}</td>
+      <td><span class="badge badge-{{ nc.status|lower }}">{{ nc.get_status_display }}</span></td>
+      <td>{% if nc.days_open != None %}{{ nc.days_open }}{% else %}—{% endif %}</td>
+      <td class="actions-cell" onclick="event.stopPropagation();">
+        <a href="{% url 'nonconformity_detail' nc.pk %}" class="btn btn-outline btn-sm">✎ Edytuj</a>
+        {% if user.is_admin_role %}
+        <form method="post" action="{% url 'nonconformity_delete' nc.pk %}" style="display:inline;" onsubmit="return confirm('Na pewno usunąć niezgodność {{ nc.number }}? Tej operacji nie można cofnąć.');">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline btn-sm btn-danger">🗑 Usuń</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="8" class="muted">Brak niezgodności spełniających kryteria.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

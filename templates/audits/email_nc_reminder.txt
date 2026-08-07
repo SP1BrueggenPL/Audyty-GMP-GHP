@@ -1,0 +1,12 @@
+Dzień dobry,
+
+Niezgodność {{ nc.number }} ({{ nc.get_department_display }}, {{ nc.inspection_date|date:"d.m.Y" }})
+wciąż czeka na uzupełnienie przyczyny i działań korekcyjnych/korygujących.
+
+Opis niezgodności: {{ nc.description }}
+Lokalizacja: {{ nc.location_detail|default:"—" }}
+
+Prosimy o uzupełnienie formularza w systemie Audyty GMP/GHP.
+
+Pozdrawiamy,
+Zespół audytów GMP/GHP

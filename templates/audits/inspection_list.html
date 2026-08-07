@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Rejestr inspekcji{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Rejestr inspekcji GMP/GHP</h1><p>Wszystkie przeprowadzone inspekcje.</p></div>
+  {% if user.can_run_inspections %}<a href="{% url 'inspection_type_select' %}" class="btn btn-primary">+ Nowa inspekcja</a>{% endif %}
+</div>
+
+<form method="get" class="card" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:end;">
+  <div class="field" style="min-width:160px;">
+    <label>Status</label>
+    <select name="status" onchange="this.form.submit()">
+      <option value="">Wszystkie</option>
+      {% for value, label in status_choices %}
+      <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field" style="min-width:180px;">
+    <label>Dział</label>
+    <select name="department" onchange="this.form.submit()">
+      <option value="">Wszystkie</option>
+      {% for value, label in department_choices %}
+      <option value="{{ value }}" {% if current_department == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <noscript><button type="submit" class="btn btn-outline btn-sm">Filtruj</button></noscript>
+</form>
+
+<div class="card" style="padding:0;overflow:auto;">
+<table class="nice">
+  <thead>
+    <tr><th>Data</th><th>Typ</th><th>Obszar</th><th>Zmiana</th><th>Audytor</th><th>Wynik</th><th>NC</th><th>Status</th><th>Akcje</th></tr>
+  </thead>
+  <tbody>
+  {% for i in inspections %}
+    <tr onclick="window.location='{% url 'inspection_detail' i.pk %}'" style="cursor:pointer;">
+      <td>{{ i.inspected_at|date:"d.m.Y H:i" }}</td>
+      <td>{{ i.template.get_area_code_display }}</td>
+      <td>{{ i.area_detail|default:"—" }}</td>
+      <td>{{ i.shift }}</td>
+      <td>{{ i.inspector }}</td>
+      <td>{% if i.result_percent %}{{ i.result_percent }}%{% else %}—{% endif %}</td>
+      <td>{{ i.nonconformity_count }}</td>
+      <td><span class="badge badge-{{ i.status|lower }}">{{ i.get_status_display }}</span></td>
+      <td class="actions-cell" onclick="event.stopPropagation();">
+        {% if user.is_admin_role %}
+        <a href="{% url 'inspection_edit' i.pk %}" class="btn btn-outline btn-sm">✎ Edytuj</a>
+        <form method="post" action="{% url 'inspection_delete' i.pk %}" style="display:inline;" onsubmit="return confirm('Na pewno usunąć tę inspekcję i {{ i.nonconformity_count }} powiązanych niezgodności? Tej operacji nie można cofnąć.');">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline btn-sm btn-danger">🗑 Usuń</button>
+        </form>
+        {% else %}
+        <a href="{% url 'inspection_detail' i.pk %}" class="btn btn-outline btn-sm">Otwórz</a>
+        {% endif %}
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="9" class="muted">Brak inspekcji spełniających kryteria.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
