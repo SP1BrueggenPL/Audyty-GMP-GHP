@@ -82,14 +82,6 @@ a:hover { text-decoration: underline; }
   gap: 0.5rem;
 }
 
-.topbar .brand .mark {
-  background: var(--coral);
-  color: var(--white);
-  border-radius: 8px;
-  padding: 0.15rem 0.5rem;
-  font-family: var(--font-heading);
-}
-
 .topbar nav {
   display: flex;
   gap: 1.25rem;

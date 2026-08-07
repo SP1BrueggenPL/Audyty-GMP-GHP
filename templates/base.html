@@ -10,7 +10,7 @@
 <body>
 {% if user.is_authenticated %}
 <div class="topbar no-print">
-  <div class="brand"><span class="mark">B</span> Audyty GMP/GHP</div>
+  <div class="brand">Audyty GMP/GHP</div>
   <nav>
     <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Panel</a>
     <a href="{% url 'inspection_list' %}" class="{% if request.resolver_match.url_name == 'inspection_list' or request.resolver_match.url_name == 'inspection_detail' or request.resolver_match.url_name == 'inspection_edit' %}active{% endif %}">Rejestr inspekcji</a>
