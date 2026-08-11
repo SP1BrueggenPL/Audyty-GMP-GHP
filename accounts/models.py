@@ -18,7 +18,7 @@ class Shift(models.TextChoices):
 
 
 class Role(models.TextChoices):
-    ADMIN = "ADMIN", "Administrator"
+    ADMIN = "ADMIN", "QualityAdmin"
     HELPDESK = "HELPDESK", "Helpdesk"
     AUDYTOR = "AUDYTOR", "Audytor"
     PAKOWNIA_PRODUKCJA = "PAKOWNIA_PRODUKCJA", "Pakownia / Produkcja"
@@ -64,10 +64,10 @@ class User(AbstractUser):
         return full if full else self.username
 
     def save(self, *args, **kwargs):
-        # Dostęp do panelu Django /admin/ mają tylko superużytkownicy i rola
-        # Helpdesk (wsparcie techniczne) - rola Administrator w tej aplikacji
-        # zarządza wszystkim przez własne, dopieszczone ekrany, nie przez
-        # surowy panel Django.
+        # Dostęp do panelu Django /admin/ (surowa baza) mają tylko
+        # superużytkownicy i rola Helpdesk (wsparcie techniczne). QualityAdmin
+        # ma te same uprawnienia administracyjne w aplikacji, ale zarządza
+        # wszystkim przez własne, dopieszczone ekrany, nie przez surowy panel.
         if not self.is_superuser:
             self.is_staff = self.role == Role.HELPDESK
         super().save(*args, **kwargs)
@@ -86,7 +86,11 @@ class User(AbstractUser):
 
     @property
     def is_admin_role(self):
-        return self.is_superuser or self.role == Role.ADMIN
+        """QualityAdmin i Helpdesk mają te same uprawnienia administracyjne
+        w aplikacji (Użytkownicy, edytor checklisty, edycja/usuwanie
+        inspekcji i niezgodności). Helpdesk dodatkowo ma dostęp do panelu
+        Django /admin/ (patrz User.save())."""
+        return self.is_superuser or self.role in {Role.ADMIN, Role.HELPDESK}
 
     @property
     def department_scope(self):

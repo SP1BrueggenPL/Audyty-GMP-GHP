@@ -98,9 +98,10 @@ def _require_admin(request):
 
 
 def _manageable_users():
-    """Konta pracownicze zarządzane z tego ekranu - z wyłączeniem administratorów/
-    superużytkowników, których hasła są zarządzane w panelu /admin/."""
-    return User.objects.exclude(is_superuser=True).exclude(role=Role.ADMIN)
+    """Konta zarządzane z tego ekranu - z wyłączeniem superużytkowników
+    (tych zarządza się w panelu Django /admin/). QualityAdmin i Helpdesk
+    są tu widoczne i edytowalne jak każda inna rola."""
+    return User.objects.exclude(is_superuser=True)
 
 
 @login_required
@@ -143,8 +144,8 @@ def user_edit(request, pk):
         return redirect("dashboard")
 
     user_obj = get_object_or_404(User, pk=pk)
-    if user_obj.is_superuser or user_obj.role == Role.ADMIN:
-        messages.error(request, "Konta administratorów zarządzane są w panelu /admin/.")
+    if user_obj.is_superuser:
+        messages.error(request, "Konta superużytkowników zarządzane są w panelu /admin/.")
         return redirect("user_list")
 
     if request.method == "POST":
@@ -169,8 +170,8 @@ def user_delete(request, pk):
         return redirect("dashboard")
 
     user_obj = get_object_or_404(User, pk=pk)
-    if user_obj.is_superuser or user_obj.role == Role.ADMIN:
-        messages.error(request, "Konta administratorów zarządzane są w panelu /admin/.")
+    if user_obj.is_superuser:
+        messages.error(request, "Konta superużytkowników zarządzane są w panelu /admin/.")
         return redirect("user_list")
 
     label = str(user_obj)
@@ -195,8 +196,8 @@ def user_reset_code(request, pk):
         return redirect("dashboard")
 
     user_obj = get_object_or_404(User, pk=pk)
-    if user_obj.is_superuser or user_obj.role == Role.ADMIN:
-        messages.error(request, "Konta administratorów zarządzane są w panelu /admin/.")
+    if user_obj.is_superuser:
+        messages.error(request, "Konta superużytkowników zarządzane są w panelu /admin/.")
         return redirect("user_list")
 
     user_obj.set_unusable_password()

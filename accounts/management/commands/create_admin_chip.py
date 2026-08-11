@@ -1,17 +1,18 @@
 """
-Tworzy (albo podnosi do roli Administrator już istniejące) konto logowane
+Tworzy (albo podnosi do roli QualityAdmin już istniejące) konto logowane
 5-cyfrowym numerem chipa - tak jak wszystkie konta pracownicze. Przy
 pierwszym logowaniu system poprosi o ustawienie własnego 6-znakowego kodu
 autoryzującego (patrz accounts/views.py::chip_login).
+
+Konta QualityAdmin są też widoczne i zarządzalne w zakładce Użytkownicy
+(łącznie z przyciskiem "Resetuj kod") - ta komenda jest głównie do
+utworzenia pierwszego takiego konta z SSH, zanim ktoś w ogóle może się
+zalogować, albo gdy szybciej jest wpisać komendę niż kliknąć w UI.
 
 Użycie:
     python manage.py create_admin_chip 21012
     python manage.py create_admin_chip 21012 --imie Jan --nazwisko Kowalski
     python manage.py create_admin_chip 21012 --reset-code   # wymuś reset kodu (nawet jeśli już ustawiony)
-
-Konta z rolą Administrator są wyłączone z przycisku "Resetuj kod" w zakładce
-Użytkownicy (ten ekran zarządza tylko kontami pracowniczymi) - dla adminów
-reset robi się tą komendą, z flagą --reset-code.
 """
 import re
 

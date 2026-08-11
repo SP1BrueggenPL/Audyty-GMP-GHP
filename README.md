@@ -32,8 +32,8 @@ momentu każde kolejne logowanie to: numer chipa -> ten sam kod. Kod jest
 przechowywany tak samo bezpiecznie jak zwykłe hasło Django (hashowany, admin
 nigdy go nie widzi - może go tylko zresetować).
 
-Konta pracownicze tworzy się w zakładce **Użytkownicy** (widoczna tylko dla
-roli Administrator) — login to zawsze 5-cyfrowy numer, walidowany przy
+Konta pracownicze tworzy się w zakładce **Użytkownicy** (widoczna dla ról
+QualityAdmin i Helpdesk) — login to zawsze 5-cyfrowy numer, walidowany przy
 zapisie. Tam samo można **zresetować komuś kod** (przycisk „🔑 Resetuj kod” -
 w liście albo na stronie edycji), np. gdy ktoś go zapomni - przy następnym
 logowaniu ta osoba ustawi nowy.
@@ -55,21 +55,27 @@ Konta testowe (`seed_demo_data`):
 
 ## Role i uprawnienia
 
-| Rola | Widzi niezgodności/raporty | Przeprowadza inspekcje | Zakładka Raporty | Zarządza użytkownikami |
-|---|---|---|---|---|
-| Administrator | wszystko | tak | tak | tak |
-| Helpdesk | wszystko | tak | tak | nie |
-| Audytor | wszystko | tak | nie | nie |
-| Pakownia / Produkcja | WCE, WPP, MIX-Konfekcjonowanie | nie | nie | nie |
-| Techniczny | WED | nie | nie | nie |
-| Logistyka | WLS | nie | nie | nie |
+| Rola | Widzi niezgodności/raporty | Przeprowadza inspekcje | Zakładka Raporty | Zarządza użytkownikami | Panel Django `/admin/` |
+|---|---|---|---|---|---|
+| QualityAdmin | wszystko | tak | tak | tak | nie |
+| Helpdesk | wszystko | tak | tak | tak | tak |
+| Audytor | wszystko | tak | nie | nie | nie |
+| Pakownia / Produkcja | WCE, WPP, MIX-Konfekcjonowanie | nie | nie | nie | nie |
+| Techniczny | WED | nie | nie | nie | nie |
+| Logistyka | WLS | nie | nie | nie | nie |
+
+QualityAdmin i Helpdesk mają identyczne uprawnienia **w samej aplikacji**
+(Użytkownicy, edytor checklisty, edycja/usuwanie inspekcji i niezgodności,
+Raporty) - różnica jest tylko taka, że Helpdesk dodatkowo ma dostęp do
+surowego panelu Django `/admin/` (do wsparcia technicznego/naprawy danych),
+a QualityAdmin nie.
 
 Role, dział i zmianę przypisuje administrator w zakładce **Użytkownicy**.
 Pole **zmiana** jest nieobowiązkowe — zostaw puste dla osób niezmianowych.
 
 ## Edycja treści checklisty (w aplikacji, nie w Django admin)
 
-Rola Administrator widzi przycisk **„✎ Edytuj treść checklisty”** przy każdym
+Role QualityAdmin i Helpdesk widzą przycisk **„✎ Edytuj treść checklisty”** przy każdym
 szablonie (panel główny i „Nowa inspekcja”). Trzypoziomowy edytor:
 szablon → sekcje (zakresy wymagań, max punktów) → podsekcje → punkty
 kontrolne. Dodawanie/usuwanie wierszy działa przez przyciski „+ Dodaj…” i
@@ -115,7 +121,7 @@ AZURE_OPENAI_API_VERSION=2024-08-01-preview
 Bez tych zmiennych funkcja jest po prostu nieaktywna (komunikat w UI) —
 reszta aplikacji działa normalnie. Logika w `audits/ai.py`.
 
-## Raporty (`/raporty/`, tylko Administrator/Helpdesk)
+## Raporty (`/raporty/`, tylko QualityAdmin/Helpdesk)
 
 Cztery zakładki, odpowiadające zakładkom z arkusza
 `2026_NIEZGODNOŚCI GMP_GHP_2026_Q1 2026.xlsx`, z filtrem działu i roku:
@@ -146,13 +152,14 @@ wyników co na ekranie. Logika w `audits/reports_export.py`.
 
 ## Panel Django `/admin/` — tylko dla roli Helpdesk
 
-Rola **Administrator** w tej aplikacji zarządza wszystkim przez własne ekrany
-(Użytkownicy, edytor checklisty, Raporty) i **nie ma** dostępu do surowego
-panelu Django — link „Admin” w górnym menu i dostęp do `/admin/` mają tylko
-konta z rolą **Helpdesk** (oraz superużytkownik `admin`, do wsparcia
-technicznego/naprawy danych). To ustawiane automatycznie w `User.save()`
-(`accounts/models.py`) — zmiana roli na Helpdesk włącza `is_staff`, każda
-inna rola (poza superuserem) je wyłącza.
+Rola **QualityAdmin** ma te same uprawnienia w aplikacji co Helpdesk
+(Użytkownicy, edytor checklisty, Raporty, edycja/usuwanie inspekcji i
+niezgodności), ale **nie ma** dostępu do surowego panelu Django — link
+„Admin” w górnym menu i dostęp do `/admin/` mają tylko konta z rolą
+**Helpdesk** (oraz superużytkownik `admin`, do wsparcia technicznego/naprawy
+danych). To ustawiane automatycznie w `User.save()` (`accounts/models.py`) —
+zmiana roli na Helpdesk włącza `is_staff`, każda inna rola (poza superuserem)
+je wyłącza.
 
 ## Wdrożenie: GitHub -> Azure App Service
 
@@ -202,7 +209,7 @@ Azure App Service albo lokalnie z tym samym `DATABASE_URL`):
 ```bash
 python manage.py migrate
 python manage.py loaddata checklists
-python manage.py create_admin_chip 21012 --imie Jan --nazwisko Kowalski  # pierwsze konto z rolą Administrator - kod ustawisz przy pierwszym logowaniu
+python manage.py create_admin_chip 21012 --imie Jan --nazwisko Kowalski  # pierwsze konto z rolą QualityAdmin - kod ustawisz przy pierwszym logowaniu
 python manage.py createsuperuser  # opcjonalnie: konto do panelu /admin/ i /login/ (login+hasło)
 ```
 
