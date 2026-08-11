@@ -66,8 +66,11 @@ INSTALLED_APPS = [
 
 AUTH_USER_MODEL = 'accounts.User'
 
+# Logowanie: numer chipa (username) + 6-znakowy kod autoryzujący (password).
+# Cała logika dwuetapowego logowania (ustawienie kodu przy pierwszym logowaniu,
+# weryfikacja przy kolejnych) żyje w accounts/views.py::chip_login i korzysta
+# ze standardowego ModelBackend (username+password) - nie potrzeba custom backendu.
 AUTHENTICATION_BACKENDS = [
-    'accounts.backends.ChipBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
 

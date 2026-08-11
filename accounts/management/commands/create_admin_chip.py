@@ -1,6 +1,8 @@
 """
 Tworzy (albo podnosi do roli Administrator już istniejące) konto logowane
-5-cyfrowym numerem chipa - bez hasła, tak jak wszystkie konta pracownicze.
+5-cyfrowym numerem chipa - tak jak wszystkie konta pracownicze. Przy
+pierwszym logowaniu system poprosi o ustawienie własnego 6-znakowego kodu
+autoryzującego (patrz accounts/views.py::chip_login).
 
 Użycie:
     python manage.py create_admin_chip 21012
@@ -42,5 +44,5 @@ class Command(BaseCommand):
         action = "Utworzono" if created else "Zaktualizowano"
         self.stdout.write(self.style.SUCCESS(
             f"{action} konto administratora: {chip} ({user.get_full_name() or 'bez nazwiska'}). "
-            "Logowanie: wpisanie tego numeru na stronie głównej, bez hasła."
+            "Pierwsze logowanie: ten numer na stronie głównej, a potem ustawienie własnego 6-znakowego kodu."
         ))

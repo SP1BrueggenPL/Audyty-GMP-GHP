@@ -7,4 +7,5 @@ urlpatterns = [
     path("uzytkownicy/nowy/", views.user_new, name="user_new"),
     path("uzytkownicy/<int:pk>/edytuj/", views.user_edit, name="user_edit"),
     path("uzytkownicy/<int:pk>/usun/", views.user_delete, name="user_delete"),
+    path("uzytkownicy/<int:pk>/resetuj-kod/", views.user_reset_code, name="user_reset_code"),
 ]

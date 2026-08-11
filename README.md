@@ -25,10 +25,18 @@ Otwórz `http://127.0.0.1:8000`.
 
 ## Logowanie
 
-**Wyłącznie 5-cyfrowym numerem chipa** — jedno pole na stronie głównej, bez
-hasła. Konta pracownicze tworzy się w zakładce **Użytkownicy** (widoczna tylko
-dla roli Administrator) — login to zawsze 5-cyfrowy numer, walidowany przy
-zapisie.
+**Dwuetapowo: numer chipa (5 cyfr) + 6-znakowy kod autoryzujący.**
+Pierwsze logowanie na danym chipie (albo zaraz po resecie kodu przez admina) -
+system prosi o ustawienie własnego kodu (dwa razy, dla potwierdzenia). Od tego
+momentu każde kolejne logowanie to: numer chipa -> ten sam kod. Kod jest
+przechowywany tak samo bezpiecznie jak zwykłe hasło Django (hashowany, admin
+nigdy go nie widzi - może go tylko zresetować).
+
+Konta pracownicze tworzy się w zakładce **Użytkownicy** (widoczna tylko dla
+roli Administrator) — login to zawsze 5-cyfrowy numer, walidowany przy
+zapisie. Tam samo można **zresetować komuś kod** (przycisk „🔑 Resetuj kod” -
+w liście albo na stronie edycji), np. gdy ktoś go zapomni - przy następnym
+logowaniu ta osoba ustawi nowy.
 
 Wyjątek: konto **admina** (superużytkownik) loguje się login+hasło pod
 `/login/` i zarządza samo sobą / innymi kontami administratorskimi w panelu
@@ -194,7 +202,7 @@ Azure App Service albo lokalnie z tym samym `DATABASE_URL`):
 ```bash
 python manage.py migrate
 python manage.py loaddata checklists
-python manage.py create_admin_chip 21012 --imie Jan --nazwisko Kowalski  # pierwsze konto z rolą Administrator, logowanie samym numerem
+python manage.py create_admin_chip 21012 --imie Jan --nazwisko Kowalski  # pierwsze konto z rolą Administrator - kod ustawisz przy pierwszym logowaniu
 python manage.py createsuperuser  # opcjonalnie: konto do panelu /admin/ i /login/ (login+hasło)
 ```
 
@@ -229,10 +237,11 @@ Book, bez kursywy. Zmienne kolorów w `static/css/brand.css` (`:root`).
    niezgodność” (ad-hoc, poza pełną inspekcją).
 2. **Powiadomienia** — `EMAIL_BACKEND` jest ustawiony na konsolę (dev).
    Przed wdrożeniem podłączyć prawdziwy serwer SMTP Brüggen.
-3. **Fizyczna integracja czytnika chipów** — obecnie login to zwykłe pole
+3. **Fizyczna integracja czytnika chipów** — pole numeru to zwykłe pole
    tekstowe; podłączenie prawdziwego czytnika RFID/USB wymaga testów na
    docelowym sprzęcie (czytniki HID zwykle "wpisują" numer + Enter, co
-   powinno działać od razu, ale warto zweryfikować).
+   powinno działać od razu dla pierwszego kroku). Kod autoryzujący (krok 2)
+   i tak trzeba wpisać ręcznie z klawiatury/ekranu dotykowego.
 4. **Media na Azure Blob Storage** — obecnie zdjęcia trzymane są na dysku
    `/home/media` App Service; przy większej skali warto przejść na
    `django-storages` + Blob Storage.

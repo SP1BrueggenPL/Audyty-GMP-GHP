@@ -21,7 +21,7 @@
 <div class="card" style="padding:0;overflow:auto;">
 <table class="nice">
   <thead>
-    <tr><th>Login</th><th>Imię i nazwisko</th><th>Rola</th><th>Dział</th><th>Zmiana</th><th>Aktywny</th><th>Eskalacje</th><th>Akcje</th></tr>
+    <tr><th>Login</th><th>Imię i nazwisko</th><th>Rola</th><th>Dział</th><th>Zmiana</th><th>Aktywny</th><th>Kod</th><th>Eskalacje</th><th>Akcje</th></tr>
   </thead>
   <tbody>
   {% for u in users %}
@@ -32,9 +32,17 @@
       <td>{{ u.get_department_display|default:"—" }}</td>
       <td>{{ u.shift|default:"—" }}</td>
       <td>{% if u.is_active %}<span class="badge badge-wdrozone">Tak</span>{% else %}<span class="badge badge-anulowane">Nie</span>{% endif %}</td>
+      <td>{% if u.has_usable_password %}<span class="badge badge-wdrozone">Ustawiony</span>{% else %}<span class="badge badge-w_toku">Nie ustawiony</span>{% endif %}</td>
       <td>{% if u.receives_escalations %}✓{% else %}—{% endif %}</td>
       <td class="actions-cell" onclick="event.stopPropagation();">
         <a href="{% url 'user_edit' u.pk %}" class="btn btn-outline btn-sm">✎ Edytuj</a>
+        {% if u.has_usable_password %}
+        <form method="post" action="{% url 'user_reset_code' u.pk %}" style="display:inline;" onsubmit="return confirm('Zresetować kod użytkownika {{ u }}? Będzie musiał/a ustawić nowy przy następnym logowaniu.');">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{% url 'user_list' %}">
+          <button type="submit" class="btn btn-outline btn-sm">🔑 Resetuj kod</button>
+        </form>
+        {% endif %}
         <form method="post" action="{% url 'user_delete' u.pk %}" style="display:inline;" onsubmit="return confirm('Na pewno usunąć użytkownika {{ u }}? Tej operacji nie można cofnąć.');">
           {% csrf_token %}
           <button type="submit" class="btn btn-outline btn-sm btn-danger">🗑 Usuń</button>
@@ -42,7 +50,7 @@
       </td>
     </tr>
   {% empty %}
-    <tr><td colspan="8" class="muted">Brak użytkowników spełniających kryteria.</td></tr>
+    <tr><td colspan="9" class="muted">Brak użytkowników spełniających kryteria.</td></tr>
   {% endfor %}
   </tbody>
 </table>

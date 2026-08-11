@@ -4,7 +4,7 @@
 <div class="page-header">
   <div>
     <h1>{% if is_new %}Nowy użytkownik{% else %}Edycja: {{ user_obj }}{% endif %}</h1>
-    <p class="muted">Logowanie odbywa się wyłącznie 5-cyfrowym numerem chipa - bez hasła.</p>
+    <p class="muted">Logowanie: numer chipa + 6-znakowy kod autoryzujący (ustawiany samodzielnie przy pierwszym logowaniu).</p>
   </div>
   <a href="{% url 'user_list' %}" class="btn btn-outline btn-sm">← Wróć do listy</a>
 </div>
@@ -44,6 +44,19 @@
 </div>
 
 {% if not is_new %}
+<div class="card">
+  <h2 style="font-size:1rem;">Kod autoryzujący</h2>
+  {% if code_is_set %}
+  <p class="help-text">Kod jest ustawiony. Osoba loguje się swoim numerem chipa i tym kodem.</p>
+  <form method="post" action="{% url 'user_reset_code' user_obj.pk %}" onsubmit="return confirm('Zresetować kod użytkownika {{ user_obj }}? Będzie musiał/a ustawić nowy przy następnym logowaniu.');">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-outline btn-sm">🔑 Resetuj kod</button>
+  </form>
+  {% else %}
+  <p class="help-text">Kod nie jest jeszcze ustawiony — przy najbliższym logowaniu ta osoba zostanie poproszona o utworzenie nowego kodu.</p>
+  {% endif %}
+</div>
+
 <div class="card" style="border-color:var(--coral);">
   <h2 style="font-size:1rem;color:var(--coral);">Strefa niebezpieczna</h2>
   <p class="help-text">
