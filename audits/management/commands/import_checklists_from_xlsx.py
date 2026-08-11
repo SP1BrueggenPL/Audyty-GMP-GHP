@@ -47,7 +47,7 @@ TEMPLATES = [
     },
     {
         "area_code": AreaCode.WED,
-        "file": "GMP_WED_27.02.2026 1.xlsx",
+        "file": "GMP_WED_16.07.2026.xlsx",
         "sheet": "WED",
     },
 ]

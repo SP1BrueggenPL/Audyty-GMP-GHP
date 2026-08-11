@@ -25,14 +25,14 @@
 },
 {
   "model": "audits.checklisttemplate",
-  "pk": 6,
+  "pk": 7,
   "fields": {
     "area_code": "WED",
     "name": "Inspekcja GMP/GHP - DZIAŁ TECHNICZNY (WED)",
     "document_code": "CD-00004593- 3",
-    "version_note": "GMP_WED_27.02.2026 1",
+    "version_note": "GMP_WED_16.07.2026",
     "is_active": true,
-    "created_at": "2026-08-01T09:59:05.082Z"
+    "created_at": "2026-08-11T14:08:06.697Z"
   }
 },
 {
@@ -224,9 +224,9 @@
 },
 {
   "model": "audits.checklistsection",
-  "pk": 42,
+  "pk": 49,
   "fields": {
-    "template": 6,
+    "template": 7,
     "order": 1,
     "label": "I",
     "name": "Higiena - porządek",
@@ -235,9 +235,9 @@
 },
 {
   "model": "audits.checklistsection",
-  "pk": 43,
+  "pk": 50,
   "fields": {
-    "template": 6,
+    "template": 7,
     "order": 2,
     "label": "II",
     "name": "Higiena - czystość",
@@ -246,9 +246,9 @@
 },
 {
   "model": "audits.checklistsection",
-  "pk": 44,
+  "pk": 51,
   "fields": {
-    "template": 6,
+    "template": 7,
     "order": 3,
     "label": "III",
     "name": "Gospodarka odpadami i DDD",
@@ -257,9 +257,9 @@
 },
 {
   "model": "audits.checklistsection",
-  "pk": 45,
+  "pk": 52,
   "fields": {
-    "template": 6,
+    "template": 7,
     "order": 4,
     "label": "IV",
     "name": "Poprawność prowadzenia dokumentacji",
@@ -268,9 +268,9 @@
 },
 {
   "model": "audits.checklistsection",
-  "pk": 46,
+  "pk": 53,
   "fields": {
-    "template": 6,
+    "template": 7,
     "order": 5,
     "label": "V",
     "name": "Zagrożenie ciałami obcymi",
@@ -279,9 +279,9 @@
 },
 {
   "model": "audits.checklistsection",
-  "pk": 47,
+  "pk": 54,
   "fields": {
-    "template": 6,
+    "template": 7,
     "order": 6,
     "label": "VI",
     "name": "Higiena pracowników",
@@ -290,9 +290,9 @@
 },
 {
   "model": "audits.checklistsection",
-  "pk": 48,
+  "pk": 55,
   "fields": {
-    "template": 6,
+    "template": 7,
     "order": 7,
     "label": "VII",
     "name": "Ocena wiedzy pracowników",
@@ -791,9 +791,9 @@
 },
 {
   "model": "audits.checklistsubsection",
-  "pk": 50,
+  "pk": 66,
   "fields": {
-    "section": 42,
+    "section": 49,
     "order": 1,
     "number": "1",
     "name": "Zapobieganie zanieczyszczeniom, w trakcie prac konserwacyjnych i naprawczych oraz po ich zakończeniu\n[NC z inspekcji WCE/WPP (punkt 5 w sekcji Higiena - Porządek)]"
@@ -801,9 +801,9 @@
 },
 {
   "model": "audits.checklistsubsection",
-  "pk": 51,
+  "pk": 67,
   "fields": {
-    "section": 42,
+    "section": 49,
     "order": 2,
     "number": "2",
     "name": "Porządek w pomieszczeniach warsztatowych, magazynkach"
@@ -811,9 +811,9 @@
 },
 {
   "model": "audits.checklistsubsection",
-  "pk": 52,
+  "pk": 68,
   "fields": {
-    "section": 42,
+    "section": 49,
     "order": 3,
     "number": "3",
     "name": "Magazynowanie środków chemicznych"
@@ -821,9 +821,9 @@
 },
 {
   "model": "audits.checklistsubsection",
-  "pk": 53,
+  "pk": 69,
   "fields": {
-    "section": 43,
+    "section": 50,
     "order": 1,
     "number": "1",
     "name": "Stanowiska do mycia rąk i sprzętu"
@@ -831,9 +831,9 @@
 },
 {
   "model": "audits.checklistsubsection",
-  "pk": 54,
+  "pk": 70,
   "fields": {
-    "section": 43,
+    "section": 50,
     "order": 2,
     "number": "2",
     "name": "Czystość narzędzi, sprzętu i otoczenia"
@@ -841,9 +841,9 @@
 },
 {
   "model": "audits.checklistsubsection",
-  "pk": 55,
+  "pk": 71,
   "fields": {
-    "section": 43,
+    "section": 50,
     "order": 3,
     "number": "3",
     "name": "Wycieki i zastoiny wody, wycieki surowców płynnych i inne\n[NC z checklist WCE/WPP, sekcja Higiena - czystość, punkt 3 - wycieki i zastoiny wody, wycieki surowców płynnych i inne; jeśli wpisane do Coswin]"
@@ -851,9 +851,9 @@
 },
 {
   "model": "audits.checklistsubsection",
-  "pk": 56,
+  "pk": 72,
   "fields": {
-    "section": 44,
+    "section": 51,
     "order": 1,
     "number": "1",
     "name": "Gospodarka odpadami  - składowanie"
@@ -861,9 +861,9 @@
 },
 {
   "model": "audits.checklistsubsection",
-  "pk": 57,
+  "pk": 73,
   "fields": {
-    "section": 44,
+    "section": 51,
     "order": 2,
     "number": "2",
     "name": "DDD"
@@ -871,9 +871,9 @@
 },
 {
   "model": "audits.checklistsubsection",
-  "pk": 58,
+  "pk": 74,
   "fields": {
-    "section": 45,
+    "section": 52,
     "order": 1,
     "number": "1",
     "name": "Zapisy dotyczące prac konserwacyjnych oraz podjętych działań"
@@ -881,9 +881,9 @@
 },
 {
   "model": "audits.checklistsubsection",
-  "pk": 59,
+  "pk": 75,
   "fields": {
-    "section": 45,
+    "section": 52,
     "order": 2,
     "number": "2",
     "name": "Inna dokumentacja"
@@ -891,9 +891,9 @@
 },
 {
   "model": "audits.checklistsubsection",
-  "pk": 60,
+  "pk": 76,
   "fields": {
-    "section": 46,
+    "section": 53,
     "order": 1,
     "number": "1",
     "name": "Przestrzeganie procedur dotyczących detektora metalu/x-ray"
@@ -901,9 +901,9 @@
 },
 {
   "model": "audits.checklistsubsection",
-  "pk": 61,
+  "pk": 77,
   "fields": {
-    "section": 46,
+    "section": 53,
     "order": 2,
     "number": "2",
     "name": "Zagrożenie ciałem obcym - strefa otwartego produktu\n(odpowiednik punktu 2.1, sekcja VI z checklisty WCE/WPP - jeśli zagrożenie stwarza działanie DT)"
@@ -911,9 +911,9 @@
 },
 {
   "model": "audits.checklistsubsection",
-  "pk": 62,
+  "pk": 78,
   "fields": {
-    "section": 47,
+    "section": 54,
     "order": 1,
     "number": "1",
     "name": "Przestrzeganie przez pracowników  oraz osoby wizytujące i firmy zewnętrzne obowiązujących zasad higieny"
@@ -921,9 +921,9 @@
 },
 {
   "model": "audits.checklistsubsection",
-  "pk": 63,
+  "pk": 79,
   "fields": {
-    "section": 47,
+    "section": 54,
     "order": 2,
     "number": "2",
     "name": "Wchodzenie do zakładu z zewnątrz oraz w obszary poszczególnych stref \n(magazynowa, produkcyjna AL/raw/processing)"
@@ -931,9 +931,9 @@
 },
 {
   "model": "audits.checklistsubsection",
-  "pk": 64,
+  "pk": 80,
   "fields": {
-    "section": 48,
+    "section": 55,
     "order": 1,
     "number": "1",
     "name": "Ocena wiedzy na podstawie rozmowy"
@@ -941,9 +941,9 @@
 },
 {
   "model": "audits.checklistsubsection",
-  "pk": 65,
+  "pk": 81,
   "fields": {
-    "section": 48,
+    "section": 55,
     "order": 2,
     "number": "2",
     "name": "Ocena wiedzy na podstawie obserwacji podczas inspekcji"
@@ -2201,9 +2201,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 126,
+  "pk": 164,
   "fields": {
-    "subsection": 50,
+    "subsection": 66,
     "order": 1,
     "number": "1.1",
     "description": "Zabezpieczenie obszaru przez zanieczyszczeniami powstającymi podczas wykonywanych prac (obszar wygrodzony - jak jest możliwość, surowce i inne rzeczy używane do produkcji zabezpieczone przed zanieczyszczeniem)"
@@ -2211,9 +2211,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 127,
+  "pk": 165,
   "fields": {
-    "subsection": 50,
+    "subsection": 66,
     "order": 2,
     "number": "1.2",
     "description": "Narzędzia i części zamienne w trakcie prac naprawczych i po zakończeniu prac pod nadzorem (jeśli obszar niewygodzony, a leżą luzem narzędzia/części, a nie ma osoby wykonującej prace, to NC)"
@@ -2221,9 +2221,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 128,
+  "pk": 166,
   "fields": {
-    "subsection": 51,
+    "subsection": 67,
     "order": 1,
     "number": "2.1",
     "description": "Narzędzia, urządzenia i części zamienne składowane w wyznaczonych miejscach (brak składowania na podłodze)"
@@ -2231,9 +2231,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 129,
+  "pk": 167,
   "fields": {
-    "subsection": 51,
+    "subsection": 67,
     "order": 2,
     "number": "2.2",
     "description": "Urządzenia i części zamienne wywożone z produkcji zabezpieczone przed  zanieczyszczeniem"
@@ -2241,9 +2241,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 130,
+  "pk": 168,
   "fields": {
-    "subsection": 51,
+    "subsection": 67,
     "order": 3,
     "number": "2.3",
     "description": "Sprzęt do sprzątania w wyznaczonym miejscu"
@@ -2251,9 +2251,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 131,
+  "pk": 169,
   "fields": {
-    "subsection": 51,
+    "subsection": 67,
     "order": 4,
     "number": "2.4",
     "description": "Inne"
@@ -2261,9 +2261,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 132,
+  "pk": 170,
   "fields": {
-    "subsection": 52,
+    "subsection": 68,
     "order": 1,
     "number": "3.1",
     "description": "Środki chemiczne magazynowane w wyznaczonych miejscach (w przenośnych mieszaczach, w magazynku chemii- zamknięte, pod kontrolą); brak środków chemicznych przeterminowanych, rozchód środków chemicznych prowadzony poprawnie"
@@ -2271,9 +2271,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 133,
+  "pk": 171,
   "fields": {
-    "subsection": 52,
+    "subsection": 68,
     "order": 2,
     "number": "3.2",
     "description": "Środki chemiczne zabezpieczone zgodnie z wymaganiami zawartymi w kartach charakterystyki, brak wycieków, brak pustych opakowań po środkach chemicznych"
@@ -2281,9 +2281,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 134,
+  "pk": 172,
   "fields": {
-    "subsection": 52,
+    "subsection": 68,
     "order": 3,
     "number": "3.3",
     "description": "karty charakterystyki środków chemicznych dostępne w miejscu ich magazynowania + deklaracje food contact i alergenowe dla smarów (BIURO)"
@@ -2291,9 +2291,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 135,
+  "pk": 173,
   "fields": {
-    "subsection": 53,
+    "subsection": 69,
     "order": 1,
     "number": "1.1",
     "description": "Stanowiska mycia i dezynfekcji rąk - czyste, bez obcych zapachów"
@@ -2301,9 +2301,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 136,
+  "pk": 174,
   "fields": {
-    "subsection": 53,
+    "subsection": 69,
     "order": 2,
     "number": "1.2",
     "description": "Stanowiska mycia i dezynfekcji rąk - wyposażone w mydło, ręcznik, kosz i dezynfekant (tutaj też wchodzą stanowiska do dezynfekcji, np. linia batonów); brak nadmiaru ręczników (luźne rolki poza dyspenserem)"
@@ -2311,9 +2311,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 137,
+  "pk": 175,
   "fields": {
-    "subsection": 54,
+    "subsection": 70,
     "order": 1,
     "number": "2.1",
     "description": "Sprzęt używany do napraw, sprzęt pomocniczy oraz otoczenie bez widocznych zalegających zabrudzeń"
@@ -2321,9 +2321,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 138,
+  "pk": 176,
   "fields": {
-    "subsection": 54,
+    "subsection": 70,
     "order": 2,
     "number": "2.2",
     "description": "Maty wyłapujace opiłki metalowe (przed wyjściem z warsztatu) - obecne, bez widocznej dużej ilości zalegajacych opiłków"
@@ -2331,9 +2331,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 139,
+  "pk": 177,
   "fields": {
-    "subsection": 54,
+    "subsection": 70,
     "order": 3,
     "number": "2.3",
     "description": "Pomieszczenia techniczne uprzątnięte po zakończonych pracach"
@@ -2341,9 +2341,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 140,
+  "pk": 178,
   "fields": {
-    "subsection": 54,
+    "subsection": 70,
     "order": 4,
     "number": "2.4",
     "description": "Stanowiska komputerowe - czyste, uporządkowane, brak zbędnych przedmiotów, wylogowanie z aplikacji podczas nieobecności operatora"
@@ -2351,9 +2351,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 141,
+  "pk": 179,
   "fields": {
-    "subsection": 54,
+    "subsection": 70,
     "order": 5,
     "number": "2.5",
     "description": "Sprzęt do sprzątania - czysty"
@@ -2361,9 +2361,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 142,
+  "pk": 180,
   "fields": {
-    "subsection": 54,
+    "subsection": 70,
     "order": 6,
     "number": "2.6",
     "description": "Czystość - inne"
@@ -2371,9 +2371,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 143,
+  "pk": 181,
   "fields": {
-    "subsection": 55,
+    "subsection": 71,
     "order": 1,
     "number": "3.1",
     "description": "Wycieki płynów technicznych (smary i inne) - brak (jeśli wpisane do coswin)"
@@ -2381,9 +2381,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 144,
+  "pk": 182,
   "fields": {
-    "subsection": 56,
+    "subsection": 72,
     "order": 1,
     "number": "1.1",
     "description": "Odpady prawidłowo oznakowane i przechowywane w odpowiednich, nieuszkodzonych pojemnikach, odpady przechowywane w wyznaczonych miejscach"
@@ -2391,9 +2391,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 145,
+  "pk": 183,
   "fields": {
-    "subsection": 57,
+    "subsection": 73,
     "order": 1,
     "number": "2.1",
     "description": "Zachowanie szczelności zakładu (siatki w oknach zainstalowane, nieuszkodzone; drzwi, bramy, okna - zamknięte, nieuszkodzone)"
@@ -2401,9 +2401,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 146,
+  "pk": 184,
   "fields": {
-    "subsection": 57,
+    "subsection": 73,
     "order": 2,
     "number": "2.2",
     "description": "Pułapki/ lampy owadobójcze  zainstalowane w odpowiednich miejscach, kompletne, nieuszkodzone"
@@ -2411,9 +2411,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 147,
+  "pk": 185,
   "fields": {
-    "subsection": 57,
+    "subsection": 73,
     "order": 3,
     "number": "2.3",
     "description": "Brak potwierdzonej obecności owadów latających oraz szkodników biegających,  (odchody, pajęczyny, widoczne trasy przemieszczania się szkodników)"
@@ -2421,9 +2421,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 148,
+  "pk": 186,
   "fields": {
-    "subsection": 57,
+    "subsection": 73,
     "order": 4,
     "number": "2.4",
     "description": "Brak stwierdzonych uszkodzeń elementów infrastruktury, mogących stanowić potencjalne miejsce bytowania szkodników (pęknięcia, ubytki w ścianach, posadzkach, sufitach)"
@@ -2431,9 +2431,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 149,
+  "pk": 187,
   "fields": {
-    "subsection": 58,
+    "subsection": 74,
     "order": 1,
     "number": "1.1",
     "description": "Naprawy i konserwacje planowe - dokumentacja kompletna\n(plan konserwacji vs zapisy - sprawdzić 2-3 konserwacje z poprzedniego miesiąca) BIURO"
@@ -2441,9 +2441,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 150,
+  "pk": 188,
   "fields": {
-    "subsection": 58,
+    "subsection": 74,
     "order": 2,
     "number": "1.2",
     "description": "Usuwanie usterek i awarii - udokumentowane, realizowane \"bez zbędnej zwłoki\"\n(wybrać 2-3 zlecenia w coswin - jak długo zlecenia są otwarte + czy są pozamykane zlecenia wykonane) BIURO"
@@ -2451,9 +2451,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 151,
+  "pk": 189,
   "fields": {
-    "subsection": 59,
+    "subsection": 75,
     "order": 1,
     "number": "2.1",
     "description": "Dokumentacja serwisantów - zapoznanie się z zasadami obowiązującymi w Brueggen Polska\n(Sprawdzić dla ostatniej wizyty serwisowej - dowolna firma zewnętrzna wchodząca w obszar WCE/WPP/WLS - czy dokumentacja związana z zasadami higieny obowiązującymi w Brueggen Polska jest kompletna)"
@@ -2461,9 +2461,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 152,
+  "pk": 190,
   "fields": {
-    "subsection": 60,
+    "subsection": 76,
     "order": 1,
     "number": "1.1",
     "description": "Dostępny spis MD/x-ray; zewnętrzne kalibracje wykonane zgodnie z harmonogramem, urządzenia dopuszczone do użytkowania (sprawdzić dokumenty dla 2-3 urządzeń) BIURO"
@@ -2471,9 +2471,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 153,
+  "pk": 191,
   "fields": {
-    "subsection": 60,
+    "subsection": 76,
     "order": 2,
     "number": "1.2",
     "description": "Magnesy - zewnętrzne kalibracje wykonane zgodnie z harmonogramem; w przypadku utraty mocy powyżej 20%, zaplanowana wymiana magnesu (BIURO)"
@@ -2481,9 +2481,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 154,
+  "pk": 192,
   "fields": {
-    "subsection": 61,
+    "subsection": 77,
     "order": 1,
     "number": "2.1",
     "description": "Podczas naprawy/konserwacji brak zagrożenia ciałem obcym w strefie otwaertego produktu"
@@ -2491,9 +2491,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 155,
+  "pk": 193,
   "fields": {
-    "subsection": 62,
+    "subsection": 78,
     "order": 1,
     "number": "1.1",
     "description": "Mycie i dezynfekcja rąk zgodnie z zasadami, czepek,  odzież ochronna, obuwie robocze noszone zgodnie z zasadami, brak noszonej biżuterii, zegarków, stosowanie perfum i kosmetyków zgodne z zasadami"
@@ -2501,9 +2501,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 156,
+  "pk": 194,
   "fields": {
-    "subsection": 62,
+    "subsection": 78,
     "order": 2,
     "number": "1.2",
     "description": "Jedzenie i picie tylko w wyznaczonych pomieszczeniach socjalnych, brak używania naczyń ze szkła lub ceramiki, utrzymanie czystości w strefie socjalnej, przestrzeganie zakazu żucia gumy"
@@ -2511,9 +2511,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 157,
+  "pk": 195,
   "fields": {
-    "subsection": 62,
+    "subsection": 78,
     "order": 3,
     "number": "1.3",
     "description": "Apteczki pierwszej pomocy dostępne, zawartość apteczek kompletna, skaleczenia zabezpieczone zgodnie z zasadami (niebieskie plastry - jak pracownik ma plaster, sprawdź zapisy w karcie \"rozchody plastrów\" u KZZ)"
@@ -2521,9 +2521,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 158,
+  "pk": 196,
   "fields": {
-    "subsection": 63,
+    "subsection": 79,
     "order": 1,
     "number": "2.1",
     "description": "Zgodnie z zasadami"
@@ -2531,9 +2531,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 159,
+  "pk": 197,
   "fields": {
-    "subsection": 64,
+    "subsection": 80,
     "order": 1,
     "number": "1.1",
     "description": "Alergeny - wiedza dotycząca rodzaju alergenów występujących w zakładzie (w tym postępowanie w przypadku zabrudzenia rąk lub odzieży alergenem innym niż występujący w zakładzie produkcyjnym)"
@@ -2541,9 +2541,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 160,
+  "pk": 198,
   "fields": {
-    "subsection": 64,
+    "subsection": 80,
     "order": 2,
     "number": "1.2",
     "description": "Food defence - co to jest \"ochrona żywności\"; w jaki sposób zapewniamy bezpieczeństwo produktu"
@@ -2551,9 +2551,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 161,
+  "pk": 199,
   "fields": {
-    "subsection": 64,
+    "subsection": 80,
     "order": 3,
     "number": "1.3",
     "description": "Kultura Bezpieczeństwa Żywności (FSC) - pojęcie bardzo szerokie, pytania o działania mające na celu budowanie FSC"
@@ -2561,9 +2561,9 @@
 },
 {
   "model": "audits.checklistitem",
-  "pk": 162,
+  "pk": 200,
   "fields": {
-    "subsection": 65,
+    "subsection": 81,
     "order": 1,
     "number": "2.1",
     "description": "Higiena pracowników"
