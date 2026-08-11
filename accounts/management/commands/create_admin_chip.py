@@ -7,6 +7,11 @@ autoryzującego (patrz accounts/views.py::chip_login).
 Użycie:
     python manage.py create_admin_chip 21012
     python manage.py create_admin_chip 21012 --imie Jan --nazwisko Kowalski
+    python manage.py create_admin_chip 21012 --reset-code   # wymuś reset kodu (nawet jeśli już ustawiony)
+
+Konta z rolą Administrator są wyłączone z przycisku "Resetuj kod" w zakładce
+Użytkownicy (ten ekran zarządza tylko kontami pracowniczymi) - dla adminów
+reset robi się tą komendą, z flagą --reset-code.
 """
 import re
 
@@ -24,6 +29,10 @@ class Command(BaseCommand):
         parser.add_argument("chip", help="5-cyfrowy numer chipa, np. 21012")
         parser.add_argument("--imie", default=None, help="Imię (opcjonalnie)")
         parser.add_argument("--nazwisko", default=None, help="Nazwisko (opcjonalnie)")
+        parser.add_argument(
+            "--reset-code", action="store_true",
+            help="Wymuś reset kodu autoryzującego, nawet jeśli konto już ma ustawiony.",
+        )
 
     def handle(self, *args, **options):
         chip = options["chip"].strip()
@@ -37,12 +46,19 @@ class Command(BaseCommand):
             user.first_name = options["imie"]
         if options["nazwisko"]:
             user.last_name = options["nazwisko"]
-        if not user.has_usable_password():
+
+        code_reset = False
+        if not user.has_usable_password() or options["reset_code"]:
             user.set_unusable_password()
+            code_reset = True
         user.save()
 
         action = "Utworzono" if created else "Zaktualizowano"
         self.stdout.write(self.style.SUCCESS(
-            f"{action} konto administratora: {chip} ({user.get_full_name() or 'bez nazwiska'}). "
-            "Pierwsze logowanie: ten numer na stronie głównej, a potem ustawienie własnego 6-znakowego kodu."
+            f"{action} konto administratora: {chip} ({user.get_full_name() or 'bez nazwiska'})."
         ))
+        if code_reset:
+            self.stdout.write(self.style.SUCCESS(
+                "Kod autoryzujący zresetowany - przy najbliższym logowaniu (ten numer na "
+                "stronie głównej) system poprosi o ustawienie nowego 6-znakowego kodu."
+            ))
