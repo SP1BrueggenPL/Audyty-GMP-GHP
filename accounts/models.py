@@ -85,6 +85,12 @@ class User(AbstractUser):
         return self.is_superuser or self.role in {Role.ADMIN, Role.HELPDESK, Role.AUDYTOR}
 
     @property
+    def can_view_reports(self):
+        """Zakładka Raporty - tylko QualityAdmin i Helpdesk (nie Audytor,
+        mimo że Audytor ma has_full_access do danych)."""
+        return self.is_superuser or self.role in {Role.ADMIN, Role.HELPDESK}
+
+    @property
     def is_admin_role(self):
         """QualityAdmin i Helpdesk mają te same uprawnienia administracyjne
         w aplikacji (Użytkownicy, edytor checklisty, edycja/usuwanie

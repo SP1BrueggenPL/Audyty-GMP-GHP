@@ -202,8 +202,8 @@ def _build_points_sheet(wb, data, year):
 
 @login_required
 def reports_export(request):
-    if not request.user.has_full_access:
-        messages.error(request, "Raporty są dostępne tylko dla administratora i helpdesku.")
+    if not request.user.can_view_reports:
+        messages.error(request, "Raporty są dostępne tylko dla QualityAdmin i Helpdesku.")
         return redirect("dashboard")
 
     f = _report_filters(request)

@@ -85,8 +85,8 @@ def _build_all_tabs(f):
 
 @login_required
 def reports_dashboard(request):
-    if not request.user.has_full_access:
-        messages.error(request, "Raporty są dostępne tylko dla administratora i helpdesku.")
+    if not request.user.can_view_reports:
+        messages.error(request, "Raporty są dostępne tylko dla QualityAdmin i Helpdesku.")
         return redirect("dashboard")
 
     tab = request.GET.get("tab", "przeglad")

@@ -50,7 +50,8 @@
 </div>
 {% endif %}
 
-<div style="display:grid;grid-template-columns:1.3fr 1fr;gap:1.5rem;align-items:start;">
+<div style="display:grid;grid-template-columns:{% if user.can_run_inspections %}1.3fr 1fr{% else %}1fr{% endif %};gap:1.5rem;align-items:start;">
+  {% if user.can_run_inspections %}
   <div class="card">
     <h2 style="font-size:1.05rem;">Ostatnie inspekcje</h2>
     <table class="nice">
@@ -71,6 +72,7 @@
       </tbody>
     </table>
   </div>
+  {% endif %}
 
   <div class="card">
     <h2 style="font-size:1.05rem;">Twoje zadania</h2>

@@ -268,6 +268,10 @@ def inspection_new(request, template_id):
 
 @login_required
 def inspection_list(request):
+    if not request.user.can_run_inspections:
+        messages.error(request, "Rejestr inspekcji jest dostępny dla Audytora, QualityAdmin i Helpdesku.")
+        return redirect("dashboard")
+
     inspections = _scoped_inspections(request.user)
 
     status = request.GET.get("status", "")

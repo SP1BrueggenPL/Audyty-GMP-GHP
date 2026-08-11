@@ -13,12 +13,12 @@
   <div class="brand">Audyty GMP/GHP</div>
   <nav>
     <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Panel</a>
-    <a href="{% url 'inspection_list' %}" class="{% if request.resolver_match.url_name == 'inspection_list' or request.resolver_match.url_name == 'inspection_detail' or request.resolver_match.url_name == 'inspection_edit' %}active{% endif %}">Rejestr inspekcji</a>
     {% if user.can_run_inspections %}
+    <a href="{% url 'inspection_list' %}" class="{% if request.resolver_match.url_name == 'inspection_list' or request.resolver_match.url_name == 'inspection_detail' or request.resolver_match.url_name == 'inspection_edit' %}active{% endif %}">Rejestr inspekcji</a>
     <a href="{% url 'inspection_type_select' %}" class="{% if request.resolver_match.url_name == 'inspection_type_select' or request.resolver_match.url_name == 'inspection_new' %}active{% endif %}">Nowa inspekcja</a>
     {% endif %}
     <a href="{% url 'nonconformity_list' %}" class="{% if 'nonconformity' in request.resolver_match.url_name %}active{% endif %}">Rejestr niezgodności</a>
-    {% if user.has_full_access %}
+    {% if user.can_view_reports %}
     <a href="{% url 'reports_dashboard' %}" class="{% if request.resolver_match.url_name == 'reports_dashboard' %}active{% endif %}">Raporty</a>
     {% endif %}
     {% if user.is_admin_role %}
