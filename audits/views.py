@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.mail import send_mail
-from django.db.models import Count, ProtectedError
+from django.db.models import Case, Count, ProtectedError, When
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -32,6 +32,7 @@ from .models import (
     NCStatus,
     NonConformity,
     NonConformityPhoto,
+    Shift,
 )
 
 User = get_user_model()
@@ -58,6 +59,26 @@ def _require_admin(request):
         return True
     messages.error(request, "Tylko administrator może edytować lub usuwać ten wpis.")
     return False
+
+
+def _require_inspection_editor(request):
+    if request.user.has_full_access:
+        return True
+    messages.error(request, "Edycja inspekcji jest dostępna dla Audytora, QualityAdmin i Helpdesku.")
+    return False
+
+
+def _ordered_nonconformities(qs):
+    """Sortuje niezgodności wg pozycji w checkliście (sekcja/podsekcja/punkt);
+    te bez punktu ("Brak punktu odniesienia") trafiają na sam koniec."""
+    return qs.annotate(
+        _no_point=Case(When(checklist_item__isnull=True, then=1), default=0),
+    ).order_by(
+        "_no_point",
+        "checklist_item__subsection__section__order",
+        "checklist_item__subsection__order",
+        "checklist_item__order",
+    )
 
 
 @login_required
@@ -103,10 +124,23 @@ def inspection_type_select(request):
 
 @login_required
 def users_by_shift(request):
-    """AJAX: zwraca osoby z danej zmiany - do automatycznego uzupełnienia
-    przedstawicieli obszaru podczas inspekcji."""
+    """AJAX: zwraca Użytkowników obszaru pasujących do działu inspekcji (wyznaczonego
+    z area_code/area_detail), dodatkowo zawężonych po zmianie gdy ta ma zastosowanie.
+    Filtrowanie wyłącznie po zmianie nie działało dla działów bez zmian (np. Techniczny/
+    WED, gdzie zmiana to zawsze "n/d") - stąd dział jako podstawowe kryterium."""
+    area_code = request.GET.get("area_code", "")
+    area_detail = request.GET.get("area_detail", "")
     shift = request.GET.get("shift", "")
-    qs = User.objects.filter(shift=shift, is_active=True).order_by("last_name", "first_name") if shift else User.objects.none()
+
+    if not area_code and not shift:
+        return JsonResponse({"users": []})
+
+    qs = User.objects.filter(is_area_user=True, is_active=True)
+    if area_code:
+        qs = qs.filter(department=derive_department(area_code, area_detail))
+    if shift and shift != Shift.ND:
+        qs = qs.filter(shift=shift)
+    qs = qs.order_by("last_name", "first_name")
     return JsonResponse({"users": [{"id": u.pk, "name": str(u)} for u in qs]})
 
 
@@ -233,7 +267,7 @@ def inspection_new(request, template_id):
                     shift=inspection.shift,
                     area_representative=area_rep_text,
                     gmp_category=category,
-                    checklist_point_label=point_label or "brak punktu",
+                    checklist_point_label=point_label or "Brak punktu odniesienia",
                     point_description=point_desc,
                     location_detail=request.POST.get(prefix + "location", "").strip(),
                     description=description,
@@ -302,7 +336,9 @@ def inspection_detail(request, pk):
         Inspection.objects.select_related("template", "inspector").prefetch_related("area_representatives"), pk=pk,
     )
     section_results = inspection.section_results.select_related("section").order_by("section__order")
-    nonconformities = inspection.nonconformities.select_related("responsible_person").all()
+    nonconformities = _ordered_nonconformities(
+        inspection.nonconformities.select_related("responsible_person")
+    )
     return render(request, "audits/inspection_detail.html", {
         "inspection": inspection,
         "section_results": section_results,
@@ -312,7 +348,7 @@ def inspection_detail(request, pk):
 
 @login_required
 def inspection_edit(request, pk):
-    if not _require_admin(request):
+    if not _require_inspection_editor(request):
         return redirect("inspection_detail", pk=pk)
 
     inspection = get_object_or_404(Inspection, pk=pk)
@@ -382,7 +418,9 @@ def inspection_report(request, pk):
         })
 
     section_results = inspection.section_results.select_related("section").order_by("section__order")
-    nonconformities = inspection.nonconformities.prefetch_related("photos").all()
+    nonconformities = _ordered_nonconformities(
+        inspection.nonconformities.prefetch_related("photos")
+    )
     return render(request, "audits/inspection_report.html", {
         "inspection": inspection,
         "section_results": section_results,

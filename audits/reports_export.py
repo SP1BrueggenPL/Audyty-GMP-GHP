@@ -13,7 +13,7 @@ from .reports_views import _build_all_tabs, _report_filters
 CLARET = "661C31"
 CORAL = "FF4143"
 GOLD_TINT = "FBF1DC"
-STEEL_TINT = "E4ECF1"
+GREEN_TINT = "DFF0E5"
 CORAL_TINT = "FDEAEA"
 HEADER_FONT = Font(color="FFFFFF", bold=True, name="Calibri")
 HEADER_FILL = PatternFill("solid", fgColor=CLARET)
@@ -24,7 +24,7 @@ THIN = Side(style="thin", color="DDDDDD")
 BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 
 SCORE_FILLS = {
-    "score-good": PatternFill("solid", fgColor=STEEL_TINT),
+    "score-good": PatternFill("solid", fgColor=GREEN_TINT),
     "score-mid": PatternFill("solid", fgColor=GOLD_TINT),
     "score-bad": PatternFill("solid", fgColor=CORAL_TINT),
 }

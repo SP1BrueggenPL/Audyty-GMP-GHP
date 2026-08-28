@@ -35,7 +35,7 @@ def _in_scope_departments(scope, department_filter):
 def _score_css(value):
     if value is None:
         return ""
-    if value >= 85:
+    if value >= 75:
         return "score-good"
     if value >= 70:
         return "score-mid"
@@ -298,7 +298,7 @@ def _build_points_tab(qs, scope, department, year):
         for nc in dept_qs.exclude(gmp_category="").only(
             "gmp_category", "checklist_point_label", "point_description", "inspection_date"
         ):
-            key = nc.checklist_point_label or "brak punktu"
+            key = nc.checklist_point_label or "Brak punktu odniesienia"
             cat_map[nc.gmp_category][key][_quarter_of(nc.inspection_date.month) - 1] += 1
             if key not in point_desc and nc.point_description:
                 point_desc[key] = nc.point_description

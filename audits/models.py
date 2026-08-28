@@ -251,7 +251,7 @@ class NonConformity(models.Model):
     gmp_category = models.CharField(max_length=200, blank=True, verbose_name="Obszar GMP/GHP")
     checklist_point_label = models.CharField(
         max_length=30, blank=True, verbose_name="Punkt checklisty",
-        help_text="np. 1.1, 3.4 lub 'brak punktu'",
+        help_text="np. 1.1, 3.4 lub 'Brak punktu odniesienia'",
     )
     point_description = models.CharField(max_length=400, blank=True, verbose_name="Opis punktu")
     location_detail = models.CharField(max_length=200, blank=True, verbose_name="Obszar / lokalizacja")

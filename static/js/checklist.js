@@ -16,11 +16,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
   if (!form) return;
 
-  // ---- 2) Przedstawiciele obszaru wg wybranej zmiany ---------------------
+  // ---- 2) Przedstawiciele obszaru (Użytkownicy obszaru) wg działu/zmiany -
+  // Widget "dostępni / wybrani": kliknięcie w dostępnego dodaje go do wybranych,
+  // ✕ przy wybranym usuwa go z powrotem do dostępnych.
   var shiftSelect = form.querySelector('select[name="shift"]');
+  var areaDetailSelect = form.querySelector('select[name="area_detail"]');
   var repListEl = document.getElementById("area-rep-list");
   var usersUrl = form.dataset.usersUrl;
-  var currentReps = []; // [{id, name}]
+  var areaCode = form.dataset.areaCode;
+  var allCandidates = []; // [{id, name}] - wszyscy kandydaci dla obecnego działu/zmiany
+  var selectedIds = new Set();
+  var currentReps = []; // [{id, name}] - aktualnie wybrani (do wypełniania selectów "odpowiedzialny")
 
   function refreshResponsibleSelects() {
     document.querySelectorAll(".responsible-select").forEach(function (select) {
@@ -40,51 +46,99 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  function renderRepList(users) {
+  function renderDualList() {
     if (!repListEl) return;
-    if (!users.length) {
-      repListEl.innerHTML = '<span class="muted">Brak osób przypisanych do tej zmiany w systemie.</span>';
+    if (!allCandidates.length) {
+      repListEl.innerHTML = '<span class="muted">Brak Użytkowników obszaru przypisanych do tego działu (patrz Użytkownicy → edycja konta).</span>';
       currentReps = [];
       refreshResponsibleSelects();
       return;
     }
-    repListEl.innerHTML = "";
-    users.forEach(function (u) {
-      var label = document.createElement("label");
-      var checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.name = "area_rep_ids";
-      checkbox.value = u.id;
-      checkbox.checked = true;
-      checkbox.addEventListener("change", function () {
-        currentReps = Array.from(repListEl.querySelectorAll('input[type=checkbox]:checked')).map(function (cb) {
-          return { id: cb.value, name: cb.nextSibling.textContent };
-        });
-        refreshResponsibleSelects();
+
+    var available = allCandidates.filter(function (u) { return !selectedIds.has(String(u.id)); });
+    var selected = allCandidates.filter(function (u) { return selectedIds.has(String(u.id)); });
+
+    repListEl.innerHTML =
+      '<div class="dual-list">' +
+      '<div class="dual-list-col"><div class="dual-list-title">Dostępni</div><div class="dual-list-items" data-role="available"></div></div>' +
+      '<div class="dual-list-col"><div class="dual-list-title">Wybrani</div><div class="dual-list-items" data-role="selected"></div></div>' +
+      "</div>";
+    var availableEl = repListEl.querySelector('[data-role="available"]');
+    var selectedEl = repListEl.querySelector('[data-role="selected"]');
+
+    if (!available.length) {
+      availableEl.innerHTML = '<span class="muted">— brak —</span>';
+    }
+    available.forEach(function (u) {
+      var item = document.createElement("div");
+      item.className = "dual-list-item";
+      item.textContent = u.name;
+      item.addEventListener("click", function () {
+        selectedIds.add(String(u.id));
+        renderDualList();
       });
-      label.appendChild(checkbox);
-      label.appendChild(document.createTextNode(u.name));
-      repListEl.appendChild(label);
+      availableEl.appendChild(item);
     });
-    currentReps = users.map(function (u) { return { id: String(u.id), name: u.name }; });
+
+    if (!selected.length) {
+      selectedEl.innerHTML = '<span class="muted">— brak —</span>';
+    }
+    selected.forEach(function (u) {
+      var item = document.createElement("div");
+      item.className = "dual-list-item is-selected";
+      var nameSpan = document.createElement("span");
+      nameSpan.textContent = u.name;
+      var removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "dual-list-remove";
+      removeBtn.textContent = "✕";
+      removeBtn.addEventListener("click", function () {
+        selectedIds.delete(String(u.id));
+        renderDualList();
+      });
+      var hidden = document.createElement("input");
+      hidden.type = "hidden";
+      hidden.name = "area_rep_ids";
+      hidden.value = u.id;
+      item.appendChild(nameSpan);
+      item.appendChild(removeBtn);
+      item.appendChild(hidden);
+      selectedEl.appendChild(item);
+    });
+
+    currentReps = selected.map(function (u) { return { id: String(u.id), name: u.name }; });
     refreshResponsibleSelects();
   }
 
-  function loadRepsForShift(shift) {
-    if (!shift || !usersUrl) {
-      renderRepList([]);
+  function loadRepsForArea() {
+    if (!usersUrl) {
+      allCandidates = [];
+      selectedIds = new Set();
+      renderDualList();
       return;
     }
-    fetch(usersUrl + "?shift=" + encodeURIComponent(shift))
+    var params = new URLSearchParams();
+    if (areaCode) params.set("area_code", areaCode);
+    if (areaDetailSelect && areaDetailSelect.value) params.set("area_detail", areaDetailSelect.value);
+    if (shiftSelect && shiftSelect.value) params.set("shift", shiftSelect.value);
+
+    fetch(usersUrl + "?" + params.toString())
       .then(function (r) { return r.json(); })
-      .then(function (data) { renderRepList(data.users || []); })
-      .catch(function () { renderRepList([]); });
+      .then(function (data) {
+        allCandidates = data.users || [];
+        selectedIds = new Set(allCandidates.map(function (u) { return String(u.id); })); // domyślnie wszyscy zaznaczeni
+        renderDualList();
+      })
+      .catch(function () {
+        allCandidates = [];
+        selectedIds = new Set();
+        renderDualList();
+      });
   }
 
-  if (shiftSelect) {
-    shiftSelect.addEventListener("change", function () { loadRepsForShift(shiftSelect.value); });
-    if (shiftSelect.value) loadRepsForShift(shiftSelect.value);
-  }
+  if (shiftSelect) shiftSelect.addEventListener("change", loadRepsForArea);
+  if (areaDetailSelect) areaDetailSelect.addEventListener("change", loadRepsForArea);
+  loadRepsForArea();
 
   // ---- 3) Dodatkowe niezgodności (formularz "dodaj kolejną") -------------
   var addBtn = document.getElementById("add-extra-nc");

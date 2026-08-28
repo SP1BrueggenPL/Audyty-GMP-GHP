@@ -9,7 +9,7 @@
   <div style="display:flex;gap:.6rem;">
     <span class="badge badge-{{ inspection.status|lower }}">{{ inspection.get_status_display }}</span>
     <a href="{% url 'inspection_report' inspection.pk %}" class="btn btn-claret btn-sm">Raport / wyślij</a>
-    {% if user.is_admin_role %}<a href="{% url 'inspection_edit' inspection.pk %}" class="btn btn-outline btn-sm">✎ Edytuj</a>{% endif %}
+    {% if user.has_full_access %}<a href="{% url 'inspection_edit' inspection.pk %}" class="btn btn-outline btn-sm">✎ Edytuj</a>{% endif %}
   </div>
 </div>
 
@@ -17,7 +17,8 @@
   <h2 style="font-size:1.05rem;">Wynik</h2>
   {% if inspection.result_percent %}
     <div class="score-bar"><span style="width:{{ inspection.result_percent }}%;"></span></div>
-    <p><strong>{{ inspection.points_total }} / {{ inspection.max_points_total }} pkt ({{ inspection.result_percent }}%)</strong></p>
+    <p><strong>{{ inspection.points_total }} / {{ inspection.max_points_total }} pkt
+      (<span class="score-pill {% if inspection.result_percent >= 75 %}score-good{% elif inspection.result_percent >= 70 %}score-mid{% else %}score-bad{% endif %}">{{ inspection.result_percent }}%</span>)</strong></p>
   {% endif %}
   <table class="nice">
     <thead><tr><th>Zakres wymagań</th><th>Punkty</th><th>Wynik</th></tr></thead>
@@ -26,7 +27,7 @@
       <tr>
         <td>{{ r.section.label }}. {{ r.section.name }}</td>
         <td>{{ r.points_awarded }} / {{ r.section.max_points }}</td>
-        <td>{% if r.percent %}{{ r.percent }}%{% else %}—{% endif %}</td>
+        <td class="{% if r.percent >= 75 %}score-good{% elif r.percent >= 70 %}score-mid{% elif r.percent != None %}score-bad{% endif %}">{% if r.percent %}{{ r.percent }}%{% else %}—{% endif %}</td>
       </tr>
     {% endfor %}
     </tbody>

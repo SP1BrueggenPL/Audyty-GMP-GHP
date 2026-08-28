@@ -55,6 +55,12 @@ class User(AbstractUser):
         default=False,
         help_text="Osoba z tej listy otrzyma powiadomienie, gdy niezgodność jest przeterminowana (eskalacja).",
     )
+    is_area_user = models.BooleanField(
+        default=False,
+        verbose_name="Użytkownik obszaru",
+        help_text="Osoba z tej listy może zostać przypisana jako odpowiedzialna za niezgodność "
+                   "oraz jako przedstawiciel obszaru podczas inspekcji.",
+    )
 
     class Meta:
         ordering = ["last_name", "first_name"]

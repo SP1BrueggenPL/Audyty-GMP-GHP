@@ -12,7 +12,7 @@
 <div class="card">
   <p><strong>Osoba przeprowadzająca inspekcję:</strong> {{ inspection.inspector }}</p>
   <p><strong>Przedstawiciele obszaru:</strong> {{ inspection.area_representatives_display|default:"—" }}</p>
-  {% if inspection.result_percent %}<p><strong>Wynik ogólny:</strong> {{ inspection.points_total }} / {{ inspection.max_points_total }} pkt ({{ inspection.result_percent }}%)</p>{% endif %}
+  {% if inspection.result_percent %}<p><strong>Wynik ogólny:</strong> {{ inspection.points_total }} / {{ inspection.max_points_total }} pkt (<span class="score-pill {% if inspection.result_percent >= 75 %}score-good{% elif inspection.result_percent >= 70 %}score-mid{% else %}score-bad{% endif %}">{{ inspection.result_percent }}%</span>)</p>{% endif %}
 </div>
 
 <div class="card">
@@ -20,7 +20,7 @@
     <thead><tr><th>Zakres wymagań</th><th>Punkty</th><th>Wynik</th></tr></thead>
     <tbody>
     {% for r in section_results %}
-      <tr><td>{{ r.section.label }}. {{ r.section.name }}</td><td>{{ r.points_awarded }} / {{ r.section.max_points }}</td><td>{% if r.percent %}{{ r.percent }}%{% endif %}</td></tr>
+      <tr><td>{{ r.section.label }}. {{ r.section.name }}</td><td>{{ r.points_awarded }} / {{ r.section.max_points }}</td><td class="{% if r.percent >= 75 %}score-good{% elif r.percent >= 70 %}score-mid{% elif r.percent != None %}score-bad{% endif %}">{% if r.percent %}{{ r.percent }}%{% endif %}</td></tr>
     {% endfor %}
     </tbody>
   </table>

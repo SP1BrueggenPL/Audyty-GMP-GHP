@@ -20,10 +20,13 @@ class UserForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ["username", "role", "department", "shift", "receives_escalations", "is_active"]
+        fields = ["username", "role", "department", "shift", "receives_escalations", "is_area_user", "is_active"]
         labels = {"username": "Numer chipa (login)"}
 
-    field_order = ["username", "full_name", "role", "department", "shift", "receives_escalations", "is_active"]
+    field_order = [
+        "username", "full_name", "role", "department", "shift",
+        "receives_escalations", "is_area_user", "is_active",
+    ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

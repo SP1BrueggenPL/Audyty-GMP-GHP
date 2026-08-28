@@ -9,7 +9,7 @@
   </div>
 </div>
 
-<form method="post" enctype="multipart/form-data" id="inspection-form" data-users-url="{% url 'users_by_shift' %}" data-suggest-url="{% url 'suggest_nonconformity' %}">
+<form method="post" enctype="multipart/form-data" id="inspection-form" data-users-url="{% url 'users_by_shift' %}" data-suggest-url="{% url 'suggest_nonconformity' %}" data-area-code="{{ template_obj.area_code }}">
   {% csrf_token %}
 
   <div class="card">
@@ -28,9 +28,9 @@
       <div class="field">
         <label>Przedstawiciele obszaru</label>
         <div id="area-rep-list" class="rep-list">
-          <span class="muted">Wybierz zmianę, aby zobaczyć osoby przypisane do tej zmiany.</span>
+          <span class="muted">Lista uzupełni się automatycznie na podstawie obszaru i zmiany.</span>
         </div>
-        <div class="help-text">Lista uzupełnia się automatycznie po wyborze zmiany. Odznacz osobę, jeśli nie brała udziału w inspekcji.</div>
+        <div class="help-text">Kliknij osobę na liście „Dostępni”, aby ją dodać, albo ✕ przy osobie na liście „Wybrani”, aby ją usunąć.</div>
       </div>
     </div>
 

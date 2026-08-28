@@ -96,7 +96,9 @@ class AuditorReviewForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["responsible_person"].queryset = User.objects.all().order_by("last_name", "first_name")
+        self.fields["responsible_person"].queryset = (
+            User.objects.filter(is_area_user=True).order_by("last_name", "first_name")
+        )
 
 
 class InspectionAdminEditForm(forms.ModelForm):
@@ -125,7 +127,9 @@ class InspectionAdminEditForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["inspected_at"].input_formats = ["%Y-%m-%dT%H:%M"]
         self.fields["inspector"].queryset = User.objects.all().order_by("last_name", "first_name")
-        self.fields["area_representatives"].queryset = User.objects.all().order_by("last_name", "first_name")
+        self.fields["area_representatives"].queryset = (
+            User.objects.filter(is_area_user=True).order_by("last_name", "first_name")
+        )
 
 
 class StandaloneNonConformityForm(forms.ModelForm):
@@ -145,4 +149,6 @@ class StandaloneNonConformityForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["responsible_person"].queryset = User.objects.all().order_by("last_name", "first_name")
+        self.fields["responsible_person"].queryset = (
+            User.objects.filter(is_area_user=True).order_by("last_name", "first_name")
+        )

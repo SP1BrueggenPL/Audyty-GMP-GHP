@@ -12,6 +12,8 @@
   --pink: #CC6884;
   --charcoal: #514B51;
   --steel: #7885A2;
+  --green: #2F7D4F;
+  --green-tint: #DFF0E5;
   --white: #FFFFFF;
   --bg: #FBF7F5;
   --border: #E7DCDD;
@@ -414,24 +416,65 @@ table.nice tr:hover { background: #FBEFEA; }
   border-radius: var(--radius-sm);
   padding: 0.6rem 0.75rem;
   min-height: 2.5rem;
+}
+
+/* Widget "dostępni / wybrani" - dobór przedstawicieli obszaru / osoby odpowiedzialnej. */
+.dual-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.dual-list-col { min-width: 0; }
+
+.dual-list-title {
+  font-family: var(--font-heading);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--steel);
+  margin-bottom: 0.35rem;
+}
+
+.dual-list-items {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 9rem;
+  overflow-y: auto;
 }
 
-.rep-list label {
-  display: inline-flex;
+.dual-list-item {
+  display: flex;
   align-items: center;
-  gap: 0.35rem;
-  font-family: var(--font-body);
-  font-weight: 400;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.86rem;
   color: var(--charcoal);
-  font-size: 0.88rem;
-  margin: 0;
+  background: var(--bg);
+  cursor: pointer;
 }
 
-.rep-list input[type=checkbox] { width: auto; }
+.dual-list-item:hover { background: var(--border); }
+
+.dual-list-item.is-selected {
+  background: #E4ECF1;
+  cursor: default;
+}
+
+.dual-list-item.is-selected:hover { background: #E4ECF1; }
+
+.dual-list-remove {
+  border: none;
+  background: none;
+  color: var(--coral);
+  cursor: pointer;
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 0.1rem 0.3rem;
+}
 
 .extra-nc-block {
   border: 1.5px dashed var(--steel);
@@ -513,10 +556,16 @@ footer.app-footer {
 }
 
 /* Kolorowanie wyników % (odpowiednik warunkowego formatowania w Excelu):
-   >=85% dobry wynik, 70-84% do obserwacji, <70% wymaga uwagi. */
-table.nice td.score-good { background: #E4ECF1; color: var(--steel); font-weight: 700; }
+   >=75% dobry wynik, 70-74% do obserwacji, <70% wymaga uwagi. */
+table.nice td.score-good { background: var(--green-tint); color: var(--green); font-weight: 700; }
 table.nice td.score-mid { background: #FBF1DC; color: #8a6d1f; font-weight: 700; }
 table.nice td.score-bad { background: #FDEAEA; color: var(--coral); font-weight: 700; }
+
+/* Wersja "pigułka" tych samych kolorów - do wyniku ogólnego poza tabelą. */
+.score-pill { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 999px; font-weight: 700; }
+.score-pill.score-good { background: var(--green-tint); color: var(--green); }
+.score-pill.score-mid { background: #FBF1DC; color: #8a6d1f; }
+.score-pill.score-bad { background: #FDEAEA; color: var(--coral); }
 
 .score-legend {
   display: flex;
