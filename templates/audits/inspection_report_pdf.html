@@ -57,7 +57,7 @@
 
   {% if inspection.summary_good or inspection.summary_to_fix or inspection.comment %}
   <h2>Podsumowanie</h2>
-  <p><span class="badge score-good">&#9786; Co było ok</span><br>{{ inspection.summary_good|default:"—" }}</p>
+  <p><span class="badge score-good">&#128522; Co było ok</span><br>{{ inspection.summary_good|default:"—" }}</p>
   <p><span class="badge score-mid">&#128528; Do poprawy</span><br>{{ inspection.summary_to_fix|default:"—" }}</p>
   {% if inspection.comment %}<p><strong>Komentarz:</strong><br>{{ inspection.comment }}</p>{% endif %}
   {% endif %}
