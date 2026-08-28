@@ -25,6 +25,12 @@
       </div>
     </div>
     <div class="field-row">
+      <div class="field">
+        {{ form.email.label_tag }}{{ form.email }}
+        {{ form.email.errors }}
+      </div>
+    </div>
+    <div class="field-row">
       <div class="field">{{ form.role.label_tag }}{{ form.role }}</div>
       <div class="field">{{ form.department.label_tag }}{{ form.department }}</div>
       <div class="field">{{ form.shift.label_tag }}{{ form.shift }}<div class="help-text">{{ form.shift.help_text }}</div></div>
