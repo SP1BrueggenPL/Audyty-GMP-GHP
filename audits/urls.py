@@ -11,6 +11,7 @@ urlpatterns = [
     path("inspekcje/<int:pk>/edytuj/", views.inspection_edit, name="inspection_edit"),
     path("inspekcje/<int:pk>/usun/", views.inspection_delete, name="inspection_delete"),
     path("inspekcje/<int:pk>/raport/", views.inspection_report, name="inspection_report"),
+    path("inspekcje/<int:pk>/raport/pdf/", views.inspection_report_pdf, name="inspection_report_pdf"),
     path("niezgodnosci/", views.nonconformity_list, name="nonconformity_list"),
     path("niezgodnosci/nowa/", views.nonconformity_new, name="nonconformity_new"),
     path("niezgodnosci/<int:pk>/", views.nonconformity_detail, name="nonconformity_detail"),

@@ -597,6 +597,55 @@ table.nice td.score-bad { background: #FDEAEA; color: var(--coral); font-weight:
   display: inline-block;
 }
 
+/* ---------- Lightbox zdjęć (powiększenie / pobieranie / nawigacja) ------- */
+.lightbox-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 15, 17, 0.92);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.lightbox-overlay.open { display: flex; }
+
+.lightbox-img {
+  max-width: 88vw;
+  max-height: 78vh;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.lightbox-close, .lightbox-prev, .lightbox-next {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--white);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.lightbox-close { top: 1.5rem; right: 1.5rem; width: 2.4rem; height: 2.4rem; }
+.lightbox-prev, .lightbox-next { top: 50%; transform: translateY(-50%); width: 3rem; height: 3rem; font-size: 1.8rem; }
+.lightbox-prev { left: 1rem; }
+.lightbox-next { right: 1rem; }
+.lightbox-close:hover, .lightbox-prev:hover, .lightbox-next:hover { background: rgba(255, 255, 255, 0.25); }
+
+.lightbox-footer {
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--white);
+}
+
+.lightbox-caption { font-size: 0.85rem; color: #e7dcdd; }
+.lightbox-download { background: var(--white); }
+
 @media print {
   .topbar, .no-print { display: none !important; }
   body { background: var(--white); }

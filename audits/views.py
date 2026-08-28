@@ -4,16 +4,18 @@ from accounts.models import Department, Role
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Case, Count, ProtectedError, When
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .ai import suggest_inspection_summary, suggest_nc_description
+from .email_acs import send_report_email
+from .pdf import render_inspection_pdf
 from .forms import (
     AuditorReviewForm,
     InspectionAdminEditForm,
@@ -566,6 +568,7 @@ def inspection_report(request, pk):
         if form.is_valid():
             inspection.summary_good = form.cleaned_data["summary_good"]
             inspection.summary_to_fix = form.cleaned_data["summary_to_fix"]
+            inspection.comment = form.cleaned_data["comment"]
             inspection.report_recipients = form.cleaned_data["report_recipients"]
             inspection.status = "REPORT_SENT"
             inspection.report_sent_at = timezone.now()
@@ -573,15 +576,27 @@ def inspection_report(request, pk):
 
             recipients = [r.strip() for r in inspection.report_recipients.split(",") if r.strip()]
             if recipients:
-                body = render_to_string("audits/email_report.txt", {"inspection": inspection})
-                send_mail(
-                    subject=f"Raport inspekcji GMP/GHP - {inspection.template.get_area_code_display()} - {inspection.inspected_at:%d.%m.%Y}",
-                    message=body,
-                    from_email=None,
-                    recipient_list=recipients,
-                    fail_silently=True,
+                app_link = request.build_absolute_uri(reverse("inspection_detail", args=[inspection.pk]))
+                section_results = inspection.section_results.select_related("section").order_by("section__order")
+                nonconformities = _ordered_nonconformities(
+                    inspection.nonconformities.prefetch_related("photos")
                 )
-                messages.success(request, f"Raport wysłany do: {', '.join(recipients)}")
+                pdf_bytes = render_inspection_pdf(inspection, section_results, nonconformities, app_link=app_link)
+                body = render_to_string("audits/email_report.txt", {"inspection": inspection, "app_link": app_link})
+                result = send_report_email(
+                    subject=f"Raport inspekcji GMP/GHP - {inspection.template.get_area_code_display()} - {inspection.inspected_at:%d.%m.%Y}",
+                    body_text=body,
+                    recipients=recipients,
+                    pdf_bytes=pdf_bytes,
+                    pdf_filename=f"raport_inspekcji_{inspection.pk}.pdf",
+                )
+                if result["sent"]:
+                    messages.success(request, f"Raport wysłany do: {', '.join(recipients)}")
+                else:
+                    messages.warning(
+                        request,
+                        f"Raport zapisany, ale wysyłka e-mail się nie powiodła: {result['error']}",
+                    )
             else:
                 messages.success(request, "Raport zapisany.")
             return redirect("inspection_detail", pk=inspection.pk)
@@ -589,6 +604,7 @@ def inspection_report(request, pk):
         form = InspectionSummaryForm(initial={
             "summary_good": inspection.summary_good,
             "summary_to_fix": inspection.summary_to_fix,
+            "comment": inspection.comment,
             "report_recipients": inspection.report_recipients,
         })
 
@@ -602,6 +618,23 @@ def inspection_report(request, pk):
         "nonconformities": nonconformities,
         "form": form,
     })
+
+
+@login_required
+def inspection_report_pdf(request, pk):
+    inspection = get_object_or_404(Inspection.objects.select_related("template", "inspector"), pk=pk)
+    section_results = inspection.section_results.select_related("section").order_by("section__order")
+    nonconformities = _ordered_nonconformities(
+        inspection.nonconformities.prefetch_related("photos")
+    )
+    app_link = request.build_absolute_uri(reverse("inspection_detail", args=[inspection.pk]))
+    pdf_bytes = render_inspection_pdf(inspection, section_results, nonconformities, app_link=app_link)
+    if pdf_bytes is None:
+        messages.error(request, "Nie udało się wygenerować PDF-a raportu.")
+        return redirect("inspection_report", pk=inspection.pk)
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="raport_inspekcji_{inspection.pk}.pdf"'
+    return response
 
 
 @login_required

@@ -126,6 +126,7 @@ class Inspection(models.Model):
     status = models.CharField(max_length=20, choices=InspectionStatus.choices, default=InspectionStatus.DRAFT)
     summary_good = models.TextField(blank=True, verbose_name="Podsumowanie - co było ok")
     summary_to_fix = models.TextField(blank=True, verbose_name="Podsumowanie - co do poprawki")
+    comment = models.TextField(blank=True, verbose_name="Komentarz")
     report_recipients = models.CharField(max_length=500, blank=True, help_text="Adresy e-mail rozdzielone przecinkiem")
     report_sent_at = models.DateTimeField(null=True, blank=True)
 

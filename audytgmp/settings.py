@@ -204,6 +204,17 @@ AZURE_OPENAI_KEY = os.environ.get('AZURE_OPENAI_KEY', '')
 AZURE_OPENAI_DEPLOYMENT = os.environ.get('AZURE_OPENAI_DEPLOYMENT', '')
 AZURE_OPENAI_API_VERSION = os.environ.get('AZURE_OPENAI_API_VERSION', '2024-08-01-preview')
 
+# Wysyłka raportu z załącznikiem PDF (Azure Communication Services Email) -
+# opcjonalne, tak jak Azure OpenAI powyżej. Jeśli puste, wysyłka raportu po
+# prostu się nie powiedzie z czytelnym komunikatem (patrz audits/email_acs.py) -
+# reszta aplikacji działa normalnie.
+# AZURE_CONNECTION_STRING - dokładnie ta nazwa zmiennej jest już ustawiona
+# w Azure App Service (zasób Communication Services).
+AZURE_COMMUNICATION_CONNECTION_STRING = os.environ.get('AZURE_CONNECTION_STRING', '')
+# Zweryfikowany adres nadawcy w domenie zasobu Communication Services
+# (Portal Azure -> zasób Communication Services -> Email -> Domains).
+EMAIL_SENDER_ADDRESS = os.environ.get('EMAIL_SENDER_ADDRESS', '')
+
 # Zabezpieczenia produkcyjne - aktywne tylko, gdy DEBUG=False (czyli na Azure,
 # zakładając że tam ustawiono DEBUG=False jako zmienną środowiskową).
 if not DEBUG:

@@ -45,7 +45,7 @@
       {% if nc.photos.all %}
       <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.75rem;">
         {% for p in nc.photos.all %}
-          {% if p.kind == "NIEZGODNOSC" %}<a href="{{ p.image.url }}" target="_blank"><img src="{{ p.image.url }}" style="height:120px;border-radius:10px;object-fit:cover;"></a>{% endif %}
+          {% if p.kind == "NIEZGODNOSC" %}<a href="{{ p.image.url }}" class="lightbox-link" data-lightbox="nc-{{ nc.pk }}-problem" data-caption="{{ p.caption }}"><img src="{{ p.image.url }}" style="height:120px;border-radius:10px;object-fit:cover;"></a>{% endif %}
         {% endfor %}
       </div>
       {% endif %}
@@ -109,7 +109,7 @@
       {% for p in evidence %}
         {% if p.kind == "DOWOD" %}
         {% if forloop.first %}<div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.75rem;">{% endif %}
-        <a href="{{ p.image.url }}" target="_blank"><img src="{{ p.image.url }}" style="height:120px;border-radius:10px;object-fit:cover;"></a>
+        <a href="{{ p.image.url }}" class="lightbox-link" data-lightbox="nc-{{ nc.pk }}-dowod" data-caption="{{ p.caption }}"><img src="{{ p.image.url }}" style="height:120px;border-radius:10px;object-fit:cover;"></a>
         {% if forloop.last %}</div>{% endif %}
         {% endif %}
       {% endfor %}

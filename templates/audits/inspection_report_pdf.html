@@ -1,0 +1,69 @@
+{% load static %}<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: a4; margin: 1.8cm; }
+  /* DejaVu Sans - jedyny font tutaj ze wsparciem polskich znaków (ą ć ę ł ń ó ś ź ż),
+     zarejestrowany bezpośrednio w reportlab (patrz audits/pdf.py). */
+  body { font-family: DejaVuSans; color: #333; font-size: 10pt; }
+  h1, h2, th, strong, b, .badge, .nc-title { font-family: DejaVuSans-Bold; }
+  h1 { color: #661C31; font-size: 16pt; margin-bottom: 2px; }
+  .muted { color: #7885A2; font-size: 9pt; }
+  h2 { color: #661C31; font-size: 12pt; margin-top: 18px; margin-bottom: 6px; border-bottom: 1px solid #E7DCDD; padding-bottom: 3px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  th, td { border: 1px solid #E7DCDD; padding: 4px 6px; text-align: left; font-size: 9pt; }
+  th { background: #661C31; color: #ffffff; }
+  .score-good { background: #DFF0E5; color: #2F7D4F; }
+  .score-mid { background: #FBF1DC; color: #8a6d1f; }
+  .score-bad { background: #FDEAEA; color: #FF4143; }
+  .badge { display: inline-block; padding: 4px 10px; border-radius: 10px; }
+  .nc-block { border-top: 1px solid #E7DCDD; padding-top: 8px; margin-top: 8px; }
+  .nc-photo { height: 90px; margin: 4px 6px 4px 0; }
+  .footer-link { color: #FF4143; }
+</style>
+</head>
+<body>
+  <h1>Raport inspekcji GMP/GHP</h1>
+  <p class="muted">{{ inspection.template.get_area_code_display }} &middot; {{ inspection.area_detail }} &middot; {{ inspection.inspected_at|date:"d.m.Y H:i" }} &middot; zmiana {{ inspection.shift }}</p>
+
+  <p><strong>Osoba przeprowadzająca inspekcję:</strong> {{ inspection.inspector }}<br>
+  <strong>Przedstawiciele obszaru:</strong> {{ inspection.area_representatives_display|default:"—" }}
+  {% if inspection.result_percent %}<br><strong>Wynik ogólny:</strong> {{ inspection.points_total }} / {{ inspection.max_points_total }} pkt
+  (<span class="badge {% if inspection.result_percent >= 75 %}score-good{% elif inspection.result_percent >= 70 %}score-mid{% else %}score-bad{% endif %}">{{ inspection.result_percent }}%</span>){% endif %}</p>
+
+  <h2>Wyniki wg zakresów wymagań</h2>
+  <table>
+    <tr><th>Zakres wymagań</th><th>Punkty</th><th>Wynik</th></tr>
+    {% for r in section_results %}
+    <tr>
+      <td>{{ r.section.label }}. {{ r.section.name }}</td>
+      <td>{{ r.points_awarded }} / {{ r.section.max_points }}</td>
+      <td class="{% if r.percent >= 75 %}score-good{% elif r.percent >= 70 %}score-mid{% elif r.percent != None %}score-bad{% endif %}">{% if r.percent %}{{ r.percent }}%{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h2>Zidentyfikowane niezgodności</h2>
+  {% for row in nc_data %}
+  <div class="nc-block">
+    <div class="nc-title">{{ row.nc.number }} &middot; {{ row.nc.checklist_point_label }} &mdash; {{ row.nc.gmp_category }}</div>
+    <div>{{ row.nc.location_detail }}{% if row.nc.location_detail %} &mdash; {% endif %}{{ row.nc.description }}</div>
+    {% for p in row.photos %}<img class="nc-photo" src="{{ p.image.path }}">{% endfor %}
+  </div>
+  {% empty %}
+  <p class="muted">Brak niezgodności.</p>
+  {% endfor %}
+
+  {% if inspection.summary_good or inspection.summary_to_fix or inspection.comment %}
+  <h2>Podsumowanie</h2>
+  <p><span class="badge score-good">:) Co było ok</span><br>{{ inspection.summary_good|default:"—" }}</p>
+  <p><span class="badge score-mid">:| Do poprawy</span><br>{{ inspection.summary_to_fix|default:"—" }}</p>
+  {% if inspection.comment %}<p><strong>Komentarz:</strong><br>{{ inspection.comment }}</p>{% endif %}
+  {% endif %}
+
+  <h2>Pełne szczegóły</h2>
+  <p>Pełne dane, historia działań i zdjęcia dostępne są w systemie Audyty GMP/GHP:<br>
+  <span class="footer-link">{{ app_link }}</span></p>
+</body>
+</html>

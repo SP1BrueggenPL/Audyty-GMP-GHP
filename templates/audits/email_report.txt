@@ -10,5 +10,9 @@ CO BYŁO OK:
 CO JEST DO POPRAWKI:
 {{ inspection.summary_to_fix|default:"—" }}
 
-Liczba zidentyfikowanych niezgodności: {{ inspection.nonconformity_count }}
-Szczegóły oraz wymagane działania dostępne są w rejestrze niezgodności w systemie Audyty GMP/GHP.
+{% if inspection.comment %}KOMENTARZ:
+{{ inspection.comment }}
+
+{% endif %}Liczba zidentyfikowanych niezgodności: {{ inspection.nonconformity_count }}
+Pełny raport w załączniku PDF. Szczegóły oraz wymagane działania dostępne są też w systemie:
+{{ app_link }}

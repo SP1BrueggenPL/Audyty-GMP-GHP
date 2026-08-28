@@ -6,7 +6,10 @@
     <h1>Raport inspekcji GMP/GHP</h1>
     <p class="muted">{{ inspection.template.get_area_code_display }} · {{ inspection.area_detail }} · {{ inspection.inspected_at|date:"d.m.Y H:i" }} · zmiana {{ inspection.shift }}</p>
   </div>
-  <button onclick="window.print()" class="btn btn-outline no-print">Drukuj / zapisz PDF</button>
+  <div class="no-print" style="display:flex;gap:.5rem;">
+    <a href="{% url 'inspection_report_pdf' inspection.pk %}" target="_blank" class="btn btn-outline btn-sm">⬇ Pobierz PDF</a>
+    <button onclick="window.print()" class="btn btn-outline btn-sm">Drukuj / zapisz PDF (przeglądarka)</button>
+  </div>
 </div>
 
 <div class="card">
@@ -34,7 +37,7 @@
       <p style="margin:.3rem 0;">{{ nc.location_detail }}{% if nc.location_detail %} — {% endif %}{{ nc.description }}</p>
       {% if nc.photos.all %}
       <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
-        {% for p in nc.photos.all %}<img src="{{ p.image.url }}" style="height:110px;border-radius:8px;object-fit:cover;">{% endfor %}
+        {% for p in nc.photos.all %}<a href="{{ p.image.url }}" class="lightbox-link" data-lightbox="report-nc-{{ nc.pk }}" data-caption="{{ p.caption }}"><img src="{{ p.image.url }}" style="height:110px;border-radius:8px;object-fit:cover;"></a>{% endfor %}
       </div>
       {% endif %}
     </div>
@@ -51,17 +54,22 @@
     {% csrf_token %}
     <div class="field">{{ form.summary_good.label_tag }}{{ form.summary_good }}</div>
     <div class="field">{{ form.summary_to_fix.label_tag }}{{ form.summary_to_fix }}</div>
+    <div class="field">{{ form.comment.label_tag }}{{ form.comment }}</div>
     <div class="field">{{ form.report_recipients.label_tag }}{{ form.report_recipients }}</div>
     <button type="submit" class="btn btn-primary">Zapisz i wyślij raport</button>
   </form>
 </div>
 
-{% if inspection.summary_good or inspection.summary_to_fix %}
+{% if inspection.summary_good or inspection.summary_to_fix or inspection.comment %}
 <div class="card">
   <h3 class="subhead">🙂 Co było ok</h3>
   <p>{{ inspection.summary_good|linebreaksbr|default:"—" }}</p>
   <h3 class="subhead">😐 Co jest do poprawki</h3>
   <p>{{ inspection.summary_to_fix|linebreaksbr|default:"—" }}</p>
+  {% if inspection.comment %}
+  <h3 class="subhead">Komentarz</h3>
+  <p>{{ inspection.comment|linebreaksbr }}</p>
+  {% endif %}
 </div>
 {% endif %}
 {% endblock %}

@@ -62,6 +62,9 @@ class InspectionSummaryForm(forms.Form):
     summary_to_fix = forms.CharField(
         label="Co jest do poprawki", required=False, widget=forms.Textarea(attrs={"rows": 4}),
     )
+    comment = forms.CharField(
+        label="Komentarz", required=False, widget=forms.Textarea(attrs={"rows": 3}),
+    )
     report_recipients = forms.CharField(
         label="Adresy e-mail odbiorców raportu", required=False,
         widget=forms.TextInput(attrs={"placeholder": "np. jan.kowalski@brueggen.com, dyrekcja@brueggen.com"}),
@@ -114,7 +117,7 @@ class InspectionAdminEditForm(forms.ModelForm):
         fields = [
             "inspected_at", "area_detail", "shift", "inspector",
             "lines_working", "lines_not_working_cleaning", "lines_not_working_stopped", "rooms_checked",
-            "status", "summary_good", "summary_to_fix", "report_recipients",
+            "status", "summary_good", "summary_to_fix", "comment", "report_recipients",
         ]
         widgets = {
             "inspected_at": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
@@ -124,6 +127,7 @@ class InspectionAdminEditForm(forms.ModelForm):
             "rooms_checked": forms.Textarea(attrs={"rows": 2}),
             "summary_good": forms.Textarea(attrs={"rows": 3}),
             "summary_to_fix": forms.Textarea(attrs={"rows": 3}),
+            "comment": forms.Textarea(attrs={"rows": 3}),
         }
 
     def __init__(self, *args, **kwargs):
