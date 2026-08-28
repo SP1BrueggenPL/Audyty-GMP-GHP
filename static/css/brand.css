@@ -476,6 +476,14 @@ table.nice tr:hover { background: #FBEFEA; }
   padding: 0.1rem 0.3rem;
 }
 
+.item-nc-list { display: flex; flex-direction: column; }
+
+.item-nc-block + .item-nc-block {
+  border-top: 1.5px dashed var(--border);
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+}
+
 .extra-nc-block {
   border: 1.5px dashed var(--steel);
   border-radius: var(--radius);

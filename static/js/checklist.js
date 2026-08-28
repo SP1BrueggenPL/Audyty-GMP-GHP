@@ -26,11 +26,18 @@ document.addEventListener("DOMContentLoaded", function () {
   var areaCode = form.dataset.areaCode;
   var allCandidates = []; // [{id, name}] - wszyscy kandydaci dla obecnego działu/zmiany
   var selectedIds = new Set();
+  // W edycji istniejącej inspekcji wstępnie zaznaczamy tylko już zapisanych
+  // przedstawicieli (nie wszystkich kandydatów) - tylko przy pierwszym wczytaniu.
+  var initialSelectedIds = form.dataset.preselectedReps
+    ? form.dataset.preselectedReps.split(",").filter(Boolean)
+    : null;
   var currentReps = []; // [{id, name}] - aktualnie wybrani (do wypełniania selectów "odpowiedzialny")
 
   function refreshResponsibleSelects() {
     document.querySelectorAll(".responsible-select").forEach(function (select) {
-      var previous = select.value;
+      // select.value na pusty string przy pierwszym renderze - w edycji istniejącej
+      // niezgodności wracamy wtedy do zapisanej wcześniej osoby (data-selected).
+      var previous = select.value || select.dataset.selected || "";
       select.innerHTML = '<option value="">— wybierz przedstawiciela obszaru —</option>';
       currentReps.forEach(function (rep) {
         var opt = document.createElement("option");
@@ -126,7 +133,12 @@ document.addEventListener("DOMContentLoaded", function () {
       .then(function (r) { return r.json(); })
       .then(function (data) {
         allCandidates = data.users || [];
-        selectedIds = new Set(allCandidates.map(function (u) { return String(u.id); })); // domyślnie wszyscy zaznaczeni
+        if (initialSelectedIds) {
+          selectedIds = new Set(initialSelectedIds);
+          initialSelectedIds = null;
+        } else {
+          selectedIds = new Set(allCandidates.map(function (u) { return String(u.id); })); // domyślnie wszyscy zaznaczeni
+        }
         renderDualList();
       })
       .catch(function () {
@@ -140,7 +152,8 @@ document.addEventListener("DOMContentLoaded", function () {
   if (areaDetailSelect) areaDetailSelect.addEventListener("change", loadRepsForArea);
   loadRepsForArea();
 
-  // ---- 3) Dodatkowe niezgodności (formularz "dodaj kolejną") -------------
+  // ---- 3) Dodatkowe niezgodności (formularz "dodaj kolejną", niezwiązane
+  //         z konkretnym punktem lub podpięte pod dowolny wybrany punkt) ----
   var addBtn = document.getElementById("add-extra-nc");
   var container = document.getElementById("extra-nc-container");
   var totalInput = document.getElementById("extra-total-forms");
@@ -152,52 +165,114 @@ document.addEventListener("DOMContentLoaded", function () {
       var html = tpl.innerHTML.replace(/__prefix__/g, index);
       var wrapper = document.createElement("div");
       wrapper.innerHTML = html;
-      container.appendChild(wrapper);
+      container.appendChild(wrapper.firstElementChild);
       totalInput.value = index + 1;
       refreshResponsibleSelects();
     });
   }
 
+  // ---- 3b) "+" Dodaj kolejną niezgodność bezpośrednio przy punkcie -------
+  var itemExtraTpl = document.getElementById("item-extra-nc-template");
+
+  function wireRemoveItemNc(block) {
+    var btn = block.querySelector(".remove-item-nc");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      if (block.dataset.hasAdvanced === "1") {
+        if (!confirm("Ta niezgodność ma już wykonane działania naprawcze (przyczyna/działania korygujące). Na pewno ją usunąć?")) {
+          return;
+        }
+      }
+      block.remove();
+    });
+  }
+
+  document.querySelectorAll(".item-nc-list").forEach(function (listEl) {
+    listEl.querySelectorAll(".item-nc-block").forEach(wireRemoveItemNc);
+  });
+
+  document.querySelectorAll(".add-item-nc").forEach(function (addItemBtn) {
+    addItemBtn.addEventListener("click", function () {
+      var itemId = addItemBtn.dataset.itemId;
+      var listEl = form.querySelector('.item-nc-list[data-item-id="' + itemId + '"]');
+      var itemTotalInput = form.querySelector('input[name="item_' + itemId + '_extra-TOTAL_FORMS"]');
+      if (!itemExtraTpl || !listEl || !itemTotalInput) return;
+      var index = parseInt(itemTotalInput.value, 10);
+      var html = itemExtraTpl.innerHTML.replace(/__ITEMID__/g, itemId).replace(/__prefix__/g, index);
+      var wrapper = document.createElement("div");
+      wrapper.innerHTML = html;
+      var block = wrapper.firstElementChild;
+      listEl.appendChild(block);
+      wireRemoveItemNc(block);
+      itemTotalInput.value = index + 1;
+      refreshResponsibleSelects();
+    });
+  });
+
+  // Gdy wynik punktu zmienia się z NC na OK/n.d., a punkt ma już zaawansowaną
+  // (wypełnioną przez osobę odpowiedzialną) niezgodność - dopytaj przed zmianą,
+  // żeby nie skasować przypadkiem wykonanej pracy przy zapisie formularza.
+  document.querySelectorAll(".item-row[data-has-advanced-nc]").forEach(function (row) {
+    var itemId = row.dataset.itemId;
+    var radios = row.querySelectorAll('input[name="item_' + itemId + '_result"]');
+    radios.forEach(function (radio) {
+      radio.addEventListener("change", function () {
+        if (radio.value !== "NC") {
+          if (!confirm("Ten punkt ma już wykonane działania naprawcze dla zapisanej niezgodności. Zmiana wyniku na \"" +
+              (radio.value === "OK" ? "OK" : "n/d") + "\" usunie tę niezgodność wraz z działaniami przy zapisie. Kontynuować?")) {
+            var ncRadio = row.querySelector('input[name="item_' + itemId + '_result"][value="NC"]');
+            if (ncRadio) ncRadio.checked = true;
+            row.querySelector(".nc-detail").classList.add("open");
+          }
+        }
+      });
+    });
+  });
+
   // ---- 4) Podpowiedź opisu niezgodności (AI, Azure OpenAI GPT-4o) --------
+  // Delegacja zdarzeń na formularzu - obejmuje też bloki dodane dynamicznie
+  // (dodatkowe niezgodności per punkt / niezwiązane z punktem).
   var suggestUrl = form.dataset.suggestUrl;
   var csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
 
-  document.querySelectorAll(".suggest-ai-btn").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var itemId = btn.dataset.itemId;
-      var photoInput = form.querySelector('.photo-input[data-item-id="' + itemId + '"]');
-      var statusEl = form.querySelector('.ai-status[data-item-id="' + itemId + '"]');
-      var descField = btn.closest(".nc-detail").querySelector(".description-field");
+  form.addEventListener("click", function (e) {
+    var btn = e.target.closest(".suggest-ai-btn");
+    if (!btn) return;
 
-      if (!photoInput || !photoInput.files || !photoInput.files.length) {
-        statusEl.textContent = "Najpierw dodaj zdjęcie niezgodności.";
-        return;
-      }
+    var block = btn.closest(".item-nc-block") || btn.closest(".extra-nc-block") || btn.closest(".nc-detail");
+    var photoInput = block.querySelector(".photo-input");
+    var statusEl = block.querySelector(".ai-status");
+    var descField = block.querySelector(".description-field");
+    var itemId = btn.dataset.itemId || (photoInput && photoInput.dataset.itemId) || "";
 
-      var fd = new FormData();
-      fd.append("item_id", itemId);
-      fd.append("photo", photoInput.files[0]);
+    if (!photoInput || !photoInput.files || !photoInput.files.length) {
+      statusEl.textContent = "Najpierw dodaj zdjęcie niezgodności.";
+      return;
+    }
 
-      statusEl.textContent = "Analizuję zdjęcie…";
-      btn.disabled = true;
+    var fd = new FormData();
+    fd.append("item_id", itemId);
+    fd.append("photo", photoInput.files[0]);
 
-      fetch(suggestUrl, { method: "POST", body: fd, headers: { "X-CSRFToken": csrfToken } })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          btn.disabled = false;
-          if (data.suggestion) {
-            descField.value = data.suggestion;
-            statusEl.textContent = "Podpowiedź wstawiona - sprawdź i popraw opis przed zapisem.";
-          } else if (!data.available) {
-            statusEl.textContent = "Funkcja AI nie jest skonfigurowana (brak danych dostępowych Azure OpenAI).";
-          } else {
-            statusEl.textContent = data.error || "Nie udało się wygenerować podpowiedzi.";
-          }
-        })
-        .catch(function () {
-          btn.disabled = false;
-          statusEl.textContent = "Błąd połączenia z usługą AI.";
-        });
-    });
+    statusEl.textContent = "Analizuję zdjęcie…";
+    btn.disabled = true;
+
+    fetch(suggestUrl, { method: "POST", body: fd, headers: { "X-CSRFToken": csrfToken } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        btn.disabled = false;
+        if (data.suggestion) {
+          descField.value = data.suggestion;
+          statusEl.textContent = "Podpowiedź wstawiona - sprawdź i popraw opis przed zapisem.";
+        } else if (!data.available) {
+          statusEl.textContent = "Funkcja AI nie jest skonfigurowana (brak danych dostępowych Azure OpenAI).";
+        } else {
+          statusEl.textContent = data.error || "Nie udało się wygenerować podpowiedzi.";
+        }
+      })
+      .catch(function () {
+        btn.disabled = false;
+        statusEl.textContent = "Błąd połączenia z usługą AI.";
+      });
   });
 });

@@ -1,3 +1,4 @@
+from accounts.models import Role
 from django import forms
 from django.contrib.auth import get_user_model
 
@@ -97,18 +98,21 @@ class AuditorReviewForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["responsible_person"].queryset = (
-            User.objects.filter(is_area_user=True).order_by("last_name", "first_name")
+            User.objects.filter(role=Role.UZYTKOWNIK_OBSZARU).order_by("last_name", "first_name")
         )
 
 
 class InspectionAdminEditForm(forms.ModelForm):
-    """Pełna edycja nagłówka inspekcji - tylko dla roli Administrator.
-    Nie obejmuje ponownego wypełniania checklisty punkt po punkcie."""
+    """Pełna edycja inspekcji (nagłówek + ponowne wypełnienie checklisty punkt po
+    punkcie) - dostępna dla Audytora, QualityAdmin, Helpdesku i superużytkownika,
+    niezależnie od statusu inspekcji. Przedstawiciele obszaru są obsługiwani poza
+    tym formularzem (pole area_rep_ids w widoku, ten sam widget co przy nowej
+    inspekcji) - stąd brak area_representatives w Meta.fields."""
 
     class Meta:
         model = Inspection
         fields = [
-            "inspected_at", "area_detail", "shift", "inspector", "area_representatives",
+            "inspected_at", "area_detail", "shift", "inspector",
             "lines_working", "lines_not_working_cleaning", "lines_not_working_stopped", "rooms_checked",
             "status", "summary_good", "summary_to_fix", "report_recipients",
         ]
@@ -120,16 +124,12 @@ class InspectionAdminEditForm(forms.ModelForm):
             "rooms_checked": forms.Textarea(attrs={"rows": 2}),
             "summary_good": forms.Textarea(attrs={"rows": 3}),
             "summary_to_fix": forms.Textarea(attrs={"rows": 3}),
-            "area_representatives": forms.SelectMultiple(),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["inspected_at"].input_formats = ["%Y-%m-%dT%H:%M"]
         self.fields["inspector"].queryset = User.objects.all().order_by("last_name", "first_name")
-        self.fields["area_representatives"].queryset = (
-            User.objects.filter(is_area_user=True).order_by("last_name", "first_name")
-        )
 
 
 class StandaloneNonConformityForm(forms.ModelForm):
@@ -150,5 +150,5 @@ class StandaloneNonConformityForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["responsible_person"].queryset = (
-            User.objects.filter(is_area_user=True).order_by("last_name", "first_name")
+            User.objects.filter(role=Role.UZYTKOWNIK_OBSZARU).order_by("last_name", "first_name")
         )

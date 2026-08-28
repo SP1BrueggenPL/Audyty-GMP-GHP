@@ -24,6 +24,7 @@ class Role(models.TextChoices):
     PAKOWNIA_PRODUKCJA = "PAKOWNIA_PRODUKCJA", "Pakownia / Produkcja"
     TECHNICZNY = "TECHNICZNY", "Techniczny"
     LOGISTYKA = "LOGISTYKA", "Logistyka"
+    UZYTKOWNIK_OBSZARU = "UZYTKOWNIK_OBSZARU", "Użytkownik obszaru"
 
 
 # Role -> działy (Department), dla których ta rola widzi niezgodności / raporty.
@@ -54,12 +55,6 @@ class User(AbstractUser):
     receives_escalations = models.BooleanField(
         default=False,
         help_text="Osoba z tej listy otrzyma powiadomienie, gdy niezgodność jest przeterminowana (eskalacja).",
-    )
-    is_area_user = models.BooleanField(
-        default=False,
-        verbose_name="Użytkownik obszaru",
-        help_text="Osoba z tej listy może zostać przypisana jako odpowiedzialna za niezgodność "
-                   "oraz jako przedstawiciel obszaru podczas inspekcji.",
     )
 
     class Meta:

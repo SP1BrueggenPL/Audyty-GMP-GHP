@@ -35,15 +35,10 @@
         <label for="{{ form.receives_escalations.id_for_label }}" style="margin:0;">{{ form.receives_escalations.label }}</label>
       </div>
       <div class="field" style="display:flex;align-items:center;gap:.5rem;">
-        <input type="checkbox" id="{{ form.is_area_user.id_for_label }}" name="{{ form.is_area_user.html_name }}" {% if form.is_area_user.value %}checked{% endif %} style="width:auto;">
-        <label for="{{ form.is_area_user.id_for_label }}" style="margin:0;">{{ form.is_area_user.label }}</label>
-      </div>
-      <div class="field" style="display:flex;align-items:center;gap:.5rem;">
         <input type="checkbox" id="{{ form.is_active.id_for_label }}" name="{{ form.is_active.html_name }}" {% if form.is_active.value %}checked{% endif %} style="width:auto;">
         <label for="{{ form.is_active.id_for_label }}" style="margin:0;">Konto aktywne</label>
       </div>
     </div>
-    <div class="help-text" style="margin-top:-.5rem;margin-bottom:1rem;">{{ form.is_area_user.help_text }}</div>
     <button type="submit" class="btn btn-primary">{% if is_new %}Utwórz użytkownika{% else %}Zapisz zmiany{% endif %}</button>
   </form>
 </div>

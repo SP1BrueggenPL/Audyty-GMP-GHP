@@ -1,10 +1,11 @@
 from datetime import timedelta
 
-from accounts.models import Department
+from accounts.models import Department, Role
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.mail import send_mail
+from django.db import transaction
 from django.db.models import Case, Count, ProtectedError, When
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -66,6 +67,24 @@ def _require_inspection_editor(request):
         return True
     messages.error(request, "Edycja inspekcji jest dostępna dla Audytora, QualityAdmin i Helpdesku.")
     return False
+
+
+def _create_item_nc(inspection, item, section, department, area_rep_text, location, description, responsible_id):
+    return NonConformity.objects.create(
+        inspection=inspection,
+        checklist_item=item,
+        inspection_date=inspection.inspected_at.date(),
+        department=department,
+        inspector=inspection.inspector,
+        shift=inspection.shift,
+        area_representative=area_rep_text,
+        gmp_category=section.name,
+        checklist_point_label=item.number,
+        point_description=item.description[:400],
+        location_detail=location,
+        description=description,
+        responsible_person_id=responsible_id,
+    )
 
 
 def _ordered_nonconformities(qs):
@@ -135,7 +154,7 @@ def users_by_shift(request):
     if not area_code and not shift:
         return JsonResponse({"users": []})
 
-    qs = User.objects.filter(is_area_user=True, is_active=True)
+    qs = User.objects.filter(role=Role.UZYTKOWNIK_OBSZARU, is_active=True)
     if area_code:
         qs = qs.filter(department=derive_department(area_code, area_detail))
     if shift and shift != Shift.ND:
@@ -205,26 +224,31 @@ def inspection_new(request, template_id):
                         )
                         if result == ItemResult.NC:
                             description = request.POST.get(f"item_{item.id}_description", "").strip() or note
-                            if not description:
-                                continue
-                            responsible_id = request.POST.get(f"item_{item.id}_responsible") or None
-                            nc = NonConformity.objects.create(
-                                inspection=inspection,
-                                checklist_item=item,
-                                inspection_date=inspection.inspected_at.date(),
-                                department=department,
-                                inspector=inspection.inspector,
-                                shift=inspection.shift,
-                                area_representative=area_rep_text,
-                                gmp_category=section.name,
-                                checklist_point_label=item.number,
-                                point_description=item.description[:400],
-                                location_detail=request.POST.get(f"item_{item.id}_location", "").strip(),
-                                description=description,
-                                responsible_person_id=responsible_id,
-                            )
-                            for photo in request.FILES.getlist(f"item_{item.id}_photos"):
-                                NonConformityPhoto.objects.create(nonconformity=nc, image=photo)
+                            if description:
+                                responsible_id = request.POST.get(f"item_{item.id}_responsible") or None
+                                nc = _create_item_nc(
+                                    inspection, item, section, department, area_rep_text,
+                                    request.POST.get(f"item_{item.id}_location", "").strip(),
+                                    description, responsible_id,
+                                )
+                                for photo in request.FILES.getlist(f"item_{item.id}_photos"):
+                                    NonConformityPhoto.objects.create(nonconformity=nc, image=photo)
+
+                            # Dodatkowe niezgodności dodane przyciskiem "+" bezpośrednio przy tym punkcie.
+                            item_extra_total = int(request.POST.get(f"item_{item.id}_extra-TOTAL_FORMS", 0) or 0)
+                            for ei in range(item_extra_total):
+                                eprefix = f"item_{item.id}_extra-{ei}-"
+                                edescription = request.POST.get(eprefix + "description", "").strip()
+                                if not edescription:
+                                    continue
+                                eresponsible_id = request.POST.get(eprefix + "responsible") or None
+                                enc = _create_item_nc(
+                                    inspection, item, section, department, area_rep_text,
+                                    request.POST.get(eprefix + "location", "").strip(),
+                                    edescription, eresponsible_id,
+                                )
+                                for photo in request.FILES.getlist(eprefix + "photos"):
+                                    NonConformityPhoto.objects.create(nonconformity=enc, image=photo)
 
             # Punkty sekcji: każda niezgodność na punkcie checklisty odlicza 1 pkt
             # (minimum 0 - jeśli liczba NC >= max punktów sekcji, sekcja ma 0 pkt).
@@ -352,10 +376,126 @@ def inspection_edit(request, pk):
         return redirect("inspection_detail", pk=pk)
 
     inspection = get_object_or_404(Inspection, pk=pk)
+    template = inspection.template
+    sections = list(template.sections.prefetch_related("subsections__items").all())
+    all_items = [it for s in sections for sub in s.subsections.all() for it in sub.items.all()]
+
     if request.method == "POST":
         form = InspectionAdminEditForm(request.POST, instance=inspection)
         if form.is_valid():
-            form.save()
+            with transaction.atomic():
+                inspection = form.save()
+                department = derive_department(template.area_code, inspection.area_detail)
+
+                rep_ids = [v for v in request.POST.getlist("area_rep_ids") if v]
+                inspection.area_representatives.set(User.objects.filter(pk__in=rep_ids))
+                area_rep_text = ", ".join(str(u) for u in inspection.area_representatives.all())
+
+                for section in sections:
+                    for subsection in section.subsections.all():
+                        for item in subsection.items.all():
+                            result = request.POST.get(f"item_{item.id}_result", ItemResult.OK)
+                            note = request.POST.get(f"item_{item.id}_note", "").strip()
+                            InspectionItemResult.objects.update_or_create(
+                                inspection=inspection, item=item, defaults={"result": result, "note": note},
+                            )
+
+                            nc_total = int(request.POST.get(f"item_{item.id}_nc-TOTAL_FORMS", 0) or 0)
+                            kept_ids = set()
+                            for i in range(nc_total):
+                                prefix = f"item_{item.id}_nc-{i}-"
+                                existing_id = request.POST.get(prefix + "id") or None
+                                description = request.POST.get(prefix + "description", "").strip()
+                                if result != ItemResult.NC or not description:
+                                    continue
+                                nc = (
+                                    NonConformity.objects.filter(pk=existing_id, inspection=inspection).first()
+                                    if existing_id else None
+                                )
+                                location = request.POST.get(prefix + "location", "").strip()
+                                responsible_id = request.POST.get(prefix + "responsible") or None
+                                if nc:
+                                    nc.department = department
+                                    nc.location_detail = location
+                                    nc.description = description
+                                    nc.responsible_person_id = responsible_id
+                                    nc.save()
+                                else:
+                                    nc = _create_item_nc(
+                                        inspection, item, section, department, area_rep_text,
+                                        location, description, responsible_id,
+                                    )
+                                kept_ids.add(nc.pk)
+                                for photo in request.FILES.getlist(prefix + "photos"):
+                                    NonConformityPhoto.objects.create(nonconformity=nc, image=photo)
+
+                            NonConformity.objects.filter(
+                                inspection=inspection, checklist_item=item, is_extra=False,
+                            ).exclude(pk__in=kept_ids).delete()
+
+                # --- dodatkowe niezgodności (bez konkretnego punktu / dowolny wybrany punkt) ---
+                extra_total = int(request.POST.get("extra-TOTAL_FORMS", 0) or 0)
+                kept_extra_ids = set()
+                for i in range(extra_total):
+                    prefix = f"extra-{i}-"
+                    description = request.POST.get(prefix + "description", "").strip()
+                    if not description:
+                        continue
+                    existing_id = request.POST.get(prefix + "id") or None
+                    item_id = request.POST.get(prefix + "item") or None
+                    responsible_id = request.POST.get(prefix + "responsible") or None
+                    location = request.POST.get(prefix + "location", "").strip()
+
+                    point_label, point_desc, category = "", "", ""
+                    if item_id:
+                        chosen_item = next((it for it in all_items if str(it.id) == item_id), None)
+                        if chosen_item:
+                            point_label = chosen_item.number
+                            point_desc = chosen_item.description[:400]
+                            category = chosen_item.subsection.section.name
+                        else:
+                            item_id = None
+
+                    nc = (
+                        NonConformity.objects.filter(pk=existing_id, inspection=inspection, is_extra=True).first()
+                        if existing_id else None
+                    )
+                    if nc:
+                        nc.checklist_item_id = item_id
+                        nc.department = department
+                        nc.gmp_category = category
+                        nc.checklist_point_label = point_label or "Brak punktu odniesienia"
+                        nc.point_description = point_desc
+                        nc.location_detail = location
+                        nc.description = description
+                        nc.responsible_person_id = responsible_id
+                        nc.save()
+                    else:
+                        nc = NonConformity.objects.create(
+                            inspection=inspection, checklist_item_id=item_id, is_extra=True,
+                            inspection_date=inspection.inspected_at.date(),
+                            department=department, inspector=inspection.inspector, shift=inspection.shift,
+                            area_representative=area_rep_text,
+                            gmp_category=category, checklist_point_label=point_label or "Brak punktu odniesienia",
+                            point_description=point_desc, location_detail=location, description=description,
+                            responsible_person_id=responsible_id,
+                        )
+                    kept_extra_ids.add(nc.pk)
+                    for photo in request.FILES.getlist(prefix + "photos"):
+                        NonConformityPhoto.objects.create(nonconformity=nc, image=photo)
+
+                inspection.nonconformities.filter(is_extra=True).exclude(pk__in=kept_extra_ids).delete()
+
+                # Punkty sekcji: każda niezgodność na punkcie checklisty odlicza 1 pkt.
+                for section in sections:
+                    nc_count = NonConformity.objects.filter(
+                        inspection=inspection, is_extra=False, checklist_item__subsection__section=section,
+                    ).count()
+                    points = max(0, section.max_points - nc_count)
+                    InspectionSectionResult.objects.update_or_create(
+                        inspection=inspection, section=section, defaults={"points_awarded": points},
+                    )
+
             messages.success(request, "Inspekcja zaktualizowana.")
             return redirect("inspection_detail", pk=inspection.pk)
     else:
@@ -363,7 +503,26 @@ def inspection_edit(request, pk):
             "inspected_at": timezone.localtime(inspection.inspected_at).strftime("%Y-%m-%dT%H:%M"),
         })
 
-    return render(request, "audits/inspection_edit.html", {"form": form, "inspection": inspection})
+    item_results = {r.item_id: r for r in InspectionItemResult.objects.filter(inspection=inspection)}
+    item_ncs = {}
+    for nc in inspection.nonconformities.filter(is_extra=False, checklist_item__isnull=False).select_related("responsible_person").prefetch_related("photos"):
+        item_ncs.setdefault(nc.checklist_item_id, []).append(nc)
+    extra_ncs = list(
+        inspection.nonconformities.filter(is_extra=True)
+        .select_related("checklist_item", "responsible_person").prefetch_related("photos")
+    )
+    area_rep_ids_csv = ",".join(str(i) for i in inspection.area_representatives.values_list("pk", flat=True))
+
+    return render(request, "audits/inspection_edit.html", {
+        "form": form,
+        "inspection": inspection,
+        "sections": sections,
+        "all_items": all_items,
+        "item_results": item_results,
+        "item_ncs": item_ncs,
+        "extra_ncs": extra_ncs,
+        "area_rep_ids_csv": area_rep_ids_csv,
+    })
 
 
 @require_POST

@@ -17,7 +17,11 @@
     <div class="field-row">
       <div class="field">{{ header_form.inspected_at.label_tag }}{{ header_form.inspected_at }}{{ header_form.inspected_at.errors }}</div>
       <div class="field">{{ header_form.area_detail.label_tag }}{{ header_form.area_detail }}{{ header_form.area_detail.errors }}</div>
+      {% if template_obj.area_code == "WED" %}
+      <input type="hidden" name="shift" value="n/d">
+      {% else %}
       <div class="field">{{ header_form.shift.label_tag }}{{ header_form.shift }}{{ header_form.shift.errors }}</div>
+      {% endif %}
     </div>
     <div class="field-row">
       <div class="field">
@@ -66,28 +70,34 @@
           <label class="opt-na"><input type="radio" name="item_{{ item.id }}_result" value="NA"><span>n/d</span></label>
         </div>
         <div class="nc-detail">
-          <div class="field-row">
-            <div class="field">
-              <label>Lokalizacja / miejsce</label>
-              <input type="text" name="item_{{ item.id }}_location" placeholder="np. magazyn 2, lokacja 59-10-07">
+          <div class="item-nc-list" data-item-id="{{ item.id }}">
+            <div class="item-nc-block">
+              <div class="field-row">
+                <div class="field">
+                  <label>Lokalizacja / miejsce</label>
+                  <input type="text" name="item_{{ item.id }}_location" placeholder="np. magazyn 2, lokacja 59-10-07">
+                </div>
+                <div class="field">
+                  <label>Osoba odpowiedzialna za obszar</label>
+                  <select name="item_{{ item.id }}_responsible" class="responsible-select">
+                    <option value="">— wybierz przedstawiciela obszaru —</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field">
+                <label>Opis niezgodności</label>
+                <textarea name="item_{{ item.id }}_description" rows="2" class="description-field" placeholder="Co konkretnie jest niezgodne i gdzie?"></textarea>
+              </div>
+              <div class="field">
+                <label>Zdjęcia niezgodności</label>
+                <input type="file" name="item_{{ item.id }}_photos" class="photo-input" data-item-id="{{ item.id }}" accept="image/*" multiple capture="environment">
+                <button type="button" class="btn btn-outline btn-sm suggest-ai-btn" data-item-id="{{ item.id }}" style="margin-top:.5rem;">✨ Podpowiedz opis (AI)</button>
+                <span class="ai-status muted" data-item-id="{{ item.id }}" style="margin-left:.5rem;"></span>
+              </div>
             </div>
-            <div class="field">
-              <label>Osoba odpowiedzialna za obszar</label>
-              <select name="item_{{ item.id }}_responsible" class="responsible-select">
-                <option value="">— wybierz przedstawiciela obszaru —</option>
-              </select>
-            </div>
           </div>
-          <div class="field">
-            <label>Opis niezgodności</label>
-            <textarea name="item_{{ item.id }}_description" rows="2" class="description-field" placeholder="Co konkretnie jest niezgodne i gdzie?"></textarea>
-          </div>
-          <div class="field">
-            <label>Zdjęcia niezgodności</label>
-            <input type="file" name="item_{{ item.id }}_photos" class="photo-input" data-item-id="{{ item.id }}" accept="image/*" multiple capture="environment">
-            <button type="button" class="btn btn-outline btn-sm suggest-ai-btn" data-item-id="{{ item.id }}" style="margin-top:.5rem;">✨ Podpowiedz opis (AI)</button>
-            <span class="ai-status muted" data-item-id="{{ item.id }}" style="margin-left:.5rem;"></span>
-          </div>
+          <input type="hidden" name="item_{{ item.id }}_extra-TOTAL_FORMS" value="0">
+          <button type="button" class="btn btn-outline btn-sm add-item-nc" data-item-id="{{ item.id }}" style="margin-top:.5rem;">+ Dodaj kolejną niezgodność do tego punktu</button>
         </div>
       </div>
       {% endfor %}
@@ -99,9 +109,9 @@
   <div class="card">
     <h2 style="font-size:1.05rem;">Dodatkowe niezgodności</h2>
     <p class="help-text">
-      Użyj tej sekcji, gdy w jednym punkcie checklisty trzeba zgłosić więcej niż jedną niezgodność
-      (np. ten sam punkt w kilku różnych lokalizacjach) albo gdy niezgodność nie odpowiada żadnemu punktowi.
-      Każda taka niezgodność odlicza 1 pkt od ogólnego wyniku inspekcji.
+      Użyj tej sekcji dla niezgodności, która nie odpowiada żadnemu punktowi checklisty (albo dotyczy innego
+      punktu niż aktualnie przeglądany). Więcej niż jedną niezgodność do TEGO SAMEGO punktu dodasz przyciskiem
+      „+ Dodaj kolejną niezgodność do tego punktu” bezpośrednio przy punkcie. Każda niezgodność odlicza 1 pkt.
     </p>
     <div id="extra-nc-container"></div>
     <input type="hidden" name="extra-TOTAL_FORMS" id="extra-total-forms" value="0">
@@ -139,6 +149,34 @@
           <input type="file" name="extra-__prefix__-photos" accept="image/*" multiple capture="environment">
         </div>
       </div>
+    </div>
+  </template>
+
+  <template id="item-extra-nc-template">
+    <div class="item-nc-block">
+      <div class="field-row">
+        <div class="field">
+          <label>Lokalizacja / miejsce</label>
+          <input type="text" name="item___ITEMID___extra-__prefix__-location" placeholder="np. magazyn 2, lokacja 59-10-07">
+        </div>
+        <div class="field">
+          <label>Osoba odpowiedzialna za obszar</label>
+          <select name="item___ITEMID___extra-__prefix__-responsible" class="responsible-select">
+            <option value="">— wybierz przedstawiciela obszaru —</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Opis niezgodności</label>
+        <textarea name="item___ITEMID___extra-__prefix__-description" rows="2" class="description-field" placeholder="Co konkretnie jest niezgodne i gdzie?"></textarea>
+      </div>
+      <div class="field">
+        <label>Zdjęcia niezgodności</label>
+        <input type="file" name="item___ITEMID___extra-__prefix__-photos" class="photo-input" accept="image/*" multiple capture="environment">
+        <button type="button" class="btn btn-outline btn-sm suggest-ai-btn" style="margin-top:.5rem;">✨ Podpowiedz opis (AI)</button>
+        <span class="ai-status muted" style="margin-left:.5rem;"></span>
+      </div>
+      <button type="button" class="btn btn-outline btn-sm remove-item-nc" style="margin-top:.5rem;">🗑 Usuń tę niezgodność</button>
     </div>
   </template>
 

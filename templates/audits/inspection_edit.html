@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static audit_extras %}
 {% block title %}Edycja inspekcji{% endblock %}
 {% block content %}
 <div class="page-header">
@@ -9,27 +10,31 @@
   <a href="{% url 'inspection_detail' inspection.pk %}" class="btn btn-outline btn-sm">← Wróć do inspekcji</a>
 </div>
 
-<p class="help-text" style="margin-bottom:1rem;">
-  Ten formularz pozwala poprawić dane nagłówkowe inspekcji (datę, obszar, audytora, status, podsumowanie).
-  Nie pozwala ponownie zaznaczyć poszczególnych punktów checklisty - do tego służy rejestr niezgodności.
-</p>
+<form method="post" enctype="multipart/form-data" id="inspection-form" data-users-url="{% url 'users_by_shift' %}" data-suggest-url="{% url 'suggest_nonconformity' %}" data-area-code="{{ inspection.template.area_code }}" data-preselected-reps="{{ area_rep_ids_csv }}">
+  {% csrf_token %}
 
-<div class="card">
-  <form method="post">
-    {% csrf_token %}
+  <div class="card">
+    <h2 style="font-size:1.05rem;">Dane inspekcji</h2>
     {% if form.non_field_errors %}<div class="errorlist">{{ form.non_field_errors }}</div>{% endif %}
     <div class="field-row">
       <div class="field">{{ form.inspected_at.label_tag }}{{ form.inspected_at }}{{ form.inspected_at.errors }}</div>
       <div class="field">{{ form.area_detail.label_tag }}{{ form.area_detail }}</div>
+      {% if inspection.template.area_code == "WED" %}
+      <input type="hidden" name="shift" value="n/d">
+      {% else %}
       <div class="field">{{ form.shift.label_tag }}{{ form.shift }}</div>
+      {% endif %}
     </div>
     <div class="field-row">
       <div class="field">{{ form.inspector.label_tag }}{{ form.inspector }}</div>
       <div class="field">{{ form.status.label_tag }}{{ form.status }}</div>
     </div>
     <div class="field">
-      {{ form.area_representatives.label_tag }}{{ form.area_representatives }}
-      <div class="help-text">Przytrzymaj Ctrl (Cmd na Mac), żeby zaznaczyć kilka osób.</div>
+      <label>Przedstawiciele obszaru</label>
+      <div id="area-rep-list" class="rep-list">
+        <span class="muted">Lista uzupełni się automatycznie na podstawie obszaru i zmiany.</span>
+      </div>
+      <div class="help-text">Kliknij osobę na liście „Dostępni”, aby ją dodać, albo ✕ przy osobie na liście „Wybrani”, aby ją usunąć.</div>
     </div>
     <div class="field-row">
       <div class="field">{{ form.lines_working.label_tag }}{{ form.lines_working }}</div>
@@ -37,14 +42,224 @@
       <div class="field">{{ form.lines_not_working_stopped.label_tag }}{{ form.lines_not_working_stopped }}</div>
     </div>
     <div class="field">{{ form.rooms_checked.label_tag }}{{ form.rooms_checked }}</div>
+  </div>
+
+  {% for section in sections %}
+  <div class="section-block">
+    <div class="section-head">
+      <h3>{{ section.label }}. {{ section.name }}</h3>
+      <div class="section-points muted" style="color:#f4dede;">max {{ section.max_points }} pkt · -1 pkt za każdą niezgodność</div>
+    </div>
+    {% for subsection in section.subsections.all %}
+    <div class="subsection">
+      <div class="subsection-title">{{ subsection.number }}. {{ subsection.name }}</div>
+      {% for item in subsection.items.all %}
+      {% with result=item_results|dictkey:item.id ncs=item_ncs|dictkey:item.id %}
+      <div class="item-row" data-item-id="{{ item.id }}" {% for nc in ncs %}{% if nc.root_cause or nc.corrective_action or nc.preventive_action %}data-has-advanced-nc="1"{% endif %}{% endfor %}>
+        <div class="item-desc"><span class="item-number">{{ item.number }}</span>{{ item.description|linebreaksbr }}</div>
+        <div class="result-toggle">
+          <label class="opt-ok"><input type="radio" name="item_{{ item.id }}_result" value="OK" {% if not result or result.result == "OK" %}checked{% endif %}><span>OK</span></label>
+          <label class="opt-nc"><input type="radio" name="item_{{ item.id }}_result" value="NC" {% if result.result == "NC" %}checked{% endif %}><span>NC</span></label>
+          <label class="opt-na"><input type="radio" name="item_{{ item.id }}_result" value="NA" {% if result.result == "NA" %}checked{% endif %}><span>n/d</span></label>
+        </div>
+        <div class="nc-detail">
+          <div class="item-nc-list" data-item-id="{{ item.id }}">
+            {% for nc in ncs %}
+            <div class="item-nc-block" {% if nc.root_cause or nc.corrective_action or nc.preventive_action %}data-has-advanced="1"{% endif %}>
+              <input type="hidden" name="item_{{ item.id }}_nc-{{ forloop.counter0 }}-id" value="{{ nc.pk }}">
+              <div class="field-row">
+                <div class="field">
+                  <label>Lokalizacja / miejsce</label>
+                  <input type="text" name="item_{{ item.id }}_nc-{{ forloop.counter0 }}-location" value="{{ nc.location_detail }}">
+                </div>
+                <div class="field">
+                  <label>Osoba odpowiedzialna za obszar</label>
+                  <select name="item_{{ item.id }}_nc-{{ forloop.counter0 }}-responsible" class="responsible-select" data-selected="{{ nc.responsible_person_id|default:'' }}">
+                    <option value="">— wybierz przedstawiciela obszaru —</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field">
+                <label>Opis niezgodności</label>
+                <textarea name="item_{{ item.id }}_nc-{{ forloop.counter0 }}-description" rows="2" class="description-field">{{ nc.description }}</textarea>
+              </div>
+              <div class="field">
+                <label>Zdjęcia niezgodności</label>
+                {% if nc.photos.all %}
+                <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem;">
+                  {% for p in nc.photos.all %}<a href="{{ p.image.url }}" target="_blank"><img src="{{ p.image.url }}" style="height:70px;border-radius:6px;object-fit:cover;"></a>{% endfor %}
+                </div>
+                {% endif %}
+                <input type="file" name="item_{{ item.id }}_nc-{{ forloop.counter0 }}-photos" class="photo-input" data-item-id="{{ item.id }}" accept="image/*" multiple capture="environment">
+                <button type="button" class="btn btn-outline btn-sm suggest-ai-btn" data-item-id="{{ item.id }}" style="margin-top:.5rem;">✨ Podpowiedz opis (AI)</button>
+                <span class="ai-status muted" data-item-id="{{ item.id }}" style="margin-left:.5rem;"></span>
+              </div>
+              {% if not forloop.first %}<button type="button" class="btn btn-outline btn-sm remove-item-nc" style="margin-top:.5rem;">🗑 Usuń tę niezgodność</button>{% endif %}
+            </div>
+            {% empty %}
+            <div class="item-nc-block">
+              <div class="field-row">
+                <div class="field">
+                  <label>Lokalizacja / miejsce</label>
+                  <input type="text" name="item_{{ item.id }}_nc-0-location" placeholder="np. magazyn 2, lokacja 59-10-07">
+                </div>
+                <div class="field">
+                  <label>Osoba odpowiedzialna za obszar</label>
+                  <select name="item_{{ item.id }}_nc-0-responsible" class="responsible-select">
+                    <option value="">— wybierz przedstawiciela obszaru —</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field">
+                <label>Opis niezgodności</label>
+                <textarea name="item_{{ item.id }}_nc-0-description" rows="2" class="description-field" placeholder="Co konkretnie jest niezgodne i gdzie?"></textarea>
+              </div>
+              <div class="field">
+                <label>Zdjęcia niezgodności</label>
+                <input type="file" name="item_{{ item.id }}_nc-0-photos" class="photo-input" data-item-id="{{ item.id }}" accept="image/*" multiple capture="environment">
+                <button type="button" class="btn btn-outline btn-sm suggest-ai-btn" data-item-id="{{ item.id }}" style="margin-top:.5rem;">✨ Podpowiedz opis (AI)</button>
+                <span class="ai-status muted" data-item-id="{{ item.id }}" style="margin-left:.5rem;"></span>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <input type="hidden" name="item_{{ item.id }}_nc-TOTAL_FORMS" value="{{ ncs|length|default:1 }}">
+          <button type="button" class="btn btn-outline btn-sm add-item-nc" data-item-id="{{ item.id }}" style="margin-top:.5rem;">+ Dodaj kolejną niezgodność do tego punktu</button>
+        </div>
+      </div>
+      {% endwith %}
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  <div class="card">
+    <h2 style="font-size:1.05rem;">Dodatkowe niezgodności</h2>
+    <p class="help-text">
+      Niezgodności, które nie odpowiadają żadnemu punktowi checklisty (albo dotyczą innego punktu).
+      Więcej niż jedną niezgodność do TEGO SAMEGO punktu dodasz przyciskiem przy tym punkcie powyżej.
+    </p>
+    <div id="extra-nc-container">
+      {% for nc in extra_ncs %}
+      <div class="extra-nc-block">
+        <input type="hidden" name="extra-{{ forloop.counter0 }}-id" value="{{ nc.pk }}">
+        <div class="field-row">
+          <div class="field">
+            <label>Punkt checklisty (opcjonalnie)</label>
+            <select name="extra-{{ forloop.counter0 }}-item">
+              <option value="">Brak punktu / nie dotyczy</option>
+              {% for item in all_items %}<option value="{{ item.id }}" {% if nc.checklist_item_id == item.id %}selected{% endif %}>{{ item.number }} — {{ item.description|truncatechars:60 }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Lokalizacja / miejsce</label>
+            <input type="text" name="extra-{{ forloop.counter0 }}-location" value="{{ nc.location_detail }}">
+          </div>
+        </div>
+        <div class="field">
+          <label>Opis niezgodności</label>
+          <textarea name="extra-{{ forloop.counter0 }}-description" rows="2">{{ nc.description }}</textarea>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Osoba odpowiedzialna za obszar</label>
+            <select name="extra-{{ forloop.counter0 }}-responsible" class="responsible-select" data-selected="{{ nc.responsible_person_id|default:'' }}">
+              <option value="">— wybierz przedstawiciela obszaru —</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Zdjęcia</label>
+            {% if nc.photos.all %}
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem;">
+              {% for p in nc.photos.all %}<a href="{{ p.image.url }}" target="_blank"><img src="{{ p.image.url }}" style="height:70px;border-radius:6px;object-fit:cover;"></a>{% endfor %}
+            </div>
+            {% endif %}
+            <input type="file" name="extra-{{ forloop.counter0 }}-photos" accept="image/*" multiple capture="environment">
+          </div>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm remove-item-nc" style="margin-top:.5rem;">🗑 Usuń tę niezgodność</button>
+      </div>
+      {% endfor %}
+    </div>
+    <input type="hidden" name="extra-TOTAL_FORMS" id="extra-total-forms" value="{{ extra_ncs|length }}">
+    <button type="button" id="add-extra-nc" class="btn btn-outline btn-sm">+ Dodaj dodatkową niezgodność</button>
+  </div>
+
+  <template id="extra-nc-template">
+    <div class="extra-nc-block">
+      <div class="field-row">
+        <div class="field">
+          <label>Punkt checklisty (opcjonalnie)</label>
+          <select name="extra-__prefix__-item">
+            <option value="">Brak punktu / nie dotyczy</option>
+            {% for item in all_items %}<option value="{{ item.id }}">{{ item.number }} — {{ item.description|truncatechars:60 }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Lokalizacja / miejsce</label>
+          <input type="text" name="extra-__prefix__-location">
+        </div>
+      </div>
+      <div class="field">
+        <label>Opis niezgodności</label>
+        <textarea name="extra-__prefix__-description" rows="2"></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Osoba odpowiedzialna za obszar</label>
+          <select name="extra-__prefix__-responsible" class="responsible-select">
+            <option value="">— wybierz przedstawiciela obszaru —</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Zdjęcia</label>
+          <input type="file" name="extra-__prefix__-photos" accept="image/*" multiple capture="environment">
+        </div>
+      </div>
+      <button type="button" class="btn btn-outline btn-sm remove-item-nc" style="margin-top:.5rem;">🗑 Usuń tę niezgodność</button>
+    </div>
+  </template>
+
+  <template id="item-extra-nc-template">
+    <div class="item-nc-block">
+      <div class="field-row">
+        <div class="field">
+          <label>Lokalizacja / miejsce</label>
+          <input type="text" name="item___ITEMID___nc-__prefix__-location" placeholder="np. magazyn 2, lokacja 59-10-07">
+        </div>
+        <div class="field">
+          <label>Osoba odpowiedzialna za obszar</label>
+          <select name="item___ITEMID___nc-__prefix__-responsible" class="responsible-select">
+            <option value="">— wybierz przedstawiciela obszaru —</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Opis niezgodności</label>
+        <textarea name="item___ITEMID___nc-__prefix__-description" rows="2" class="description-field" placeholder="Co konkretnie jest niezgodne i gdzie?"></textarea>
+      </div>
+      <div class="field">
+        <label>Zdjęcia niezgodności</label>
+        <input type="file" name="item___ITEMID___nc-__prefix__-photos" class="photo-input" accept="image/*" multiple capture="environment">
+        <button type="button" class="btn btn-outline btn-sm suggest-ai-btn" style="margin-top:.5rem;">✨ Podpowiedz opis (AI)</button>
+        <span class="ai-status muted" style="margin-left:.5rem;"></span>
+      </div>
+      <button type="button" class="btn btn-outline btn-sm remove-item-nc" style="margin-top:.5rem;">🗑 Usuń tę niezgodność</button>
+    </div>
+  </template>
+
+  <div class="card">
+    <h2 style="font-size:1.05rem;">Podsumowanie inspekcji</h2>
     <div class="field">{{ form.summary_good.label_tag }}{{ form.summary_good }}</div>
     <div class="field">{{ form.summary_to_fix.label_tag }}{{ form.summary_to_fix }}</div>
     <div class="field">{{ form.report_recipients.label_tag }}{{ form.report_recipients }}</div>
-    <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
-  </form>
-</div>
+  </div>
 
-<div class="card" style="border-color:var(--coral);">
+  <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
+</form>
+
+<div class="card" style="border-color:var(--coral);margin-top:1.5rem;">
   <h2 style="font-size:1rem;color:var(--coral);">Strefa niebezpieczna</h2>
   <p class="help-text">
     Usunięcie inspekcji skasuje też wszystkie {{ inspection.nonconformity_count }} powiązanych niezgodności
@@ -56,3 +271,4 @@
   </form>
 </div>
 {% endblock %}
+{% block extra_js %}<script src="{% static 'js/checklist.js' %}"></script>{% endblock %}
