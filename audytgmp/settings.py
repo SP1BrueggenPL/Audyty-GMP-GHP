@@ -213,7 +213,9 @@ AZURE_OPENAI_API_VERSION = os.environ.get('AZURE_OPENAI_API_VERSION', '2024-08-0
 AZURE_COMMUNICATION_CONNECTION_STRING = os.environ.get('AZURE_CONNECTION_STRING', '')
 # Zweryfikowany adres nadawcy w domenie zasobu Communication Services
 # (Portal Azure -> zasób Communication Services -> Email -> Domains).
-EMAIL_SENDER_ADDRESS = os.environ.get('EMAIL_SENDER_ADDRESS', '')
+# AZURE_SENDER_ADDRESS - dokładnie ta nazwa zmiennej jest już ustawiona
+# w Azure App Service.
+EMAIL_SENDER_ADDRESS = os.environ.get('AZURE_SENDER_ADDRESS', '')
 
 # Zabezpieczenia produkcyjne - aktywne tylko, gdy DEBUG=False (czyli na Azure,
 # zakładając że tam ustawiono DEBUG=False jako zmienną środowiskową).
