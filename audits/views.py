@@ -13,7 +13,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from .ai import suggest_nc_description
+from .ai import suggest_inspection_summary, suggest_nc_description
 from .forms import (
     AuditorReviewForm,
     InspectionAdminEditForm,
@@ -24,6 +24,7 @@ from .forms import (
     derive_department,
 )
 from .models import (
+    ChecklistItem,
     ChecklistTemplate,
     Inspection,
     InspectionItemResult,
@@ -174,6 +175,21 @@ def suggest_nonconformity(request):
         .order_by("-id").values_list("description", flat=True)[:5]
     ) if item_id else []
     result = suggest_nc_description(photo=photo, past_examples=past_examples)
+    return JsonResponse(result)
+
+
+@login_required
+def suggest_inspection_summary_view(request):
+    """AJAX: propozycja podsumowania inspekcji metodą hamburgera (Azure OpenAI).
+    Do promptu trafiają WYŁĄCZNIE punkt checklisty i opis niezgodności - bez
+    nazwisk, działów ani lokalizacji (dane zanonimizowane)."""
+    inspection_id = request.POST.get("inspection_id")
+    inspection = get_object_or_404(Inspection, pk=inspection_id)
+    ncs = inspection.nonconformities.all()
+    nc_points = [(nc.checklist_point_label, nc.description) for nc in ncs]
+    total_count = len(ChecklistItem.objects.filter(subsection__section__template=inspection.template))
+    ok_count = max(0, total_count - len({nc.checklist_item_id for nc in ncs if nc.checklist_item_id}))
+    result = suggest_inspection_summary(nc_points, ok_count, total_count)
     return JsonResponse(result)
 
 

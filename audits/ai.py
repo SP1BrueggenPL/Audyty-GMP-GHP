@@ -75,3 +75,66 @@ def suggest_nc_description(photo=None, past_examples=None):
         return {"available": True, "suggestion": suggestion, "error": None}
     except Exception as exc:  # noqa: BLE001 - podpowiedź AI nie może wywalić formularza
         return {"available": True, "suggestion": None, "error": str(exc)}
+
+
+SUMMARY_PROMPT_TEMPLATE = """Jesteś asystentem audytora GMP/GHP w zakładzie produkcji spożywczej.
+Na podstawie listy niezgodności znalezionych podczas inspekcji (tylko numer punktu checklisty
+i opis - bez nazwisk, działów ani lokalizacji) napisz podsumowanie inspekcji metodą "hamburgera":
+1) krótkie, konkretne pozytywne otwarcie - co poszło dobrze (np. liczba punktów bez niezgodności,
+   ogólne wrażenie porządku), 2) rzeczowe, konstruktywne zestawienie tego, co wymaga poprawy,
+   bez oskarżycielskiego tonu, 3) krótkie pozytywne zamknięcie/zachęta na przyszłość.
+
+Punkty bez niezgodności: {ok_count} z {total_count}.
+Znalezione niezgodności (punkt - opis):
+{items}
+
+Odpowiedz WYŁĄCZNIE w formacie:
+CO_BYLO_OK: <tekst 2-4 zdania - punkt 1 i 3 metody hamburgera>
+DO_POPRAWY: <tekst 2-5 zdań - punkt 2 metody hamburgera, konkretne i rzeczowe>
+Bez dodatkowych komentarzy, nagłówków ani markdown."""
+
+
+def suggest_inspection_summary(nc_points, ok_count, total_count):
+    """Generuje propozycję podsumowania inspekcji (metoda hamburgera) na bazie
+    ZANONIMIZOWANYCH danych - nc_points to lista (punkt_checklisty, opis), bez
+    nazwisk, działów ani lokalizacji. Zwraca dict {available, summary_good,
+    summary_to_fix, error}. Nigdy nie podnosi wyjątku."""
+    if not _is_configured():
+        return {"available": False, "summary_good": None, "summary_to_fix": None,
+                "error": "Azure OpenAI nie jest skonfigurowane."}
+    if not nc_points:
+        return {"available": True, "summary_good": None, "summary_to_fix": None,
+                "error": "Brak niezgodności do podsumowania."}
+
+    try:
+        client = AzureOpenAI(
+            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+            api_key=settings.AZURE_OPENAI_KEY,
+            api_version=settings.AZURE_OPENAI_API_VERSION,
+        )
+        items_text = "\n".join(f"- {label or 'Brak punktu odniesienia'}: {desc}" for label, desc in nc_points)
+
+        response = client.chat.completions.create(
+            model=settings.AZURE_OPENAI_DEPLOYMENT,
+            messages=[{
+                "role": "user",
+                "content": SUMMARY_PROMPT_TEMPLATE.format(
+                    ok_count=ok_count, total_count=total_count, items=items_text,
+                ),
+            }],
+            max_tokens=400,
+            temperature=0.4,
+        )
+        text = response.choices[0].message.content.strip()
+        summary_good, summary_to_fix = None, None
+        for line in text.splitlines():
+            if line.upper().startswith("CO_BYLO_OK:"):
+                summary_good = line.split(":", 1)[1].strip()
+            elif line.upper().startswith("DO_POPRAWY:"):
+                summary_to_fix = line.split(":", 1)[1].strip()
+        if not summary_good and not summary_to_fix:
+            # model nie trzymał się formatu - zwróć całość jako "do poprawy", niech audytor poprawi
+            summary_to_fix = text
+        return {"available": True, "summary_good": summary_good, "summary_to_fix": summary_to_fix, "error": None}
+    except Exception as exc:  # noqa: BLE001 - podpowiedź AI nie może wywalić formularza
+        return {"available": True, "summary_good": None, "summary_to_fix": None, "error": str(exc)}

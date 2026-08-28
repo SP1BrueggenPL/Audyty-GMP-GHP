@@ -19,6 +19,7 @@ urlpatterns = [
     path("raporty/eksport/", reports_export.reports_export, name="reports_export"),
     path("api/osoby-ze-zmiany/", views.users_by_shift, name="users_by_shift"),
     path("api/podpowiedz-niezgodnosc/", views.suggest_nonconformity, name="suggest_nonconformity"),
+    path("api/podpowiedz-podsumowanie/", views.suggest_inspection_summary_view, name="suggest_inspection_summary"),
     path("checklisty/<int:pk>/", checklist_admin.checklist_template_edit, name="checklist_template_edit"),
     path("checklisty/sekcja/<int:pk>/", checklist_admin.checklist_section_edit, name="checklist_section_edit"),
     path("checklisty/podsekcja/<int:pk>/", checklist_admin.checklist_subsection_edit, name="checklist_subsection_edit"),

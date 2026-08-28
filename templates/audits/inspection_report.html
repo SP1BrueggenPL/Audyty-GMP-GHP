@@ -45,6 +45,8 @@
 
 <div class="card no-print">
   <h2 style="font-size:1.05rem;">Podsumowanie i wysyłka raportu</h2>
+  <button type="button" id="ai-summary-btn" class="btn btn-outline btn-sm" style="margin-bottom:1rem;">🤖 Wygeneruj podsumowanie AI</button>
+  <span id="ai-summary-status" class="muted" style="margin-left:.5rem;"></span>
   <form method="post">
     {% csrf_token %}
     <div class="field">{{ form.summary_good.label_tag }}{{ form.summary_good }}</div>
@@ -56,10 +58,49 @@
 
 {% if inspection.summary_good or inspection.summary_to_fix %}
 <div class="card">
-  <h3 class="subhead">Co było ok</h3>
+  <h3 class="subhead">🙂 Co było ok</h3>
   <p>{{ inspection.summary_good|linebreaksbr|default:"—" }}</p>
-  <h3 class="subhead">Co jest do poprawki</h3>
+  <h3 class="subhead">😐 Co jest do poprawki</h3>
   <p>{{ inspection.summary_to_fix|linebreaksbr|default:"—" }}</p>
 </div>
 {% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  var btn = document.getElementById("ai-summary-btn");
+  var statusEl = document.getElementById("ai-summary-status");
+  var goodField = document.getElementById("id_summary_good");
+  var toFixField = document.getElementById("id_summary_to_fix");
+  if (!btn) return;
+
+  btn.addEventListener("click", function () {
+    var csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
+    var fd = new FormData();
+    fd.append("inspection_id", "{{ inspection.pk }}");
+
+    statusEl.textContent = "Analizuję niezgodności…";
+    btn.disabled = true;
+
+    fetch("{% url 'suggest_inspection_summary' %}", { method: "POST", body: fd, headers: { "X-CSRFToken": csrfToken } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        btn.disabled = false;
+        if (data.summary_good || data.summary_to_fix) {
+          if (data.summary_good) goodField.value = data.summary_good;
+          if (data.summary_to_fix) toFixField.value = data.summary_to_fix;
+          statusEl.textContent = "Propozycja wstawiona - sprawdź i popraw przed zapisem.";
+        } else if (!data.available) {
+          statusEl.textContent = "Funkcja AI nie jest skonfigurowana (brak danych dostępowych Azure OpenAI).";
+        } else {
+          statusEl.textContent = data.error || "Nie udało się wygenerować podsumowania.";
+        }
+      })
+      .catch(function () {
+        btn.disabled = false;
+        statusEl.textContent = "Błąd połączenia z usługą AI.";
+      });
+  });
+});
+</script>
 {% endblock %}
