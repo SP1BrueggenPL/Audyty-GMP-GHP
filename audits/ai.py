@@ -90,14 +90,14 @@ Znalezione niezgodności (punkt - opis):
 {items}
 
 Odpowiedz WYŁĄCZNIE w formacie wypunktowanym (każdy punkt w osobnej linii,
-zaczynający się od "- ", 1 krótkie zdanie na punkt, 2-4 punkty na sekcję):
+zaczynający się od "* ", 1 krótkie zdanie na punkt, 2-4 punkty na sekcję):
 CO_BYLO_OK:
-- <punkt>
-- <punkt>
+* <punkt>
+* <punkt>
 DO_POPRAWY:
-- <punkt>
-- <punkt>
-Bez dodatkowych komentarzy, nagłówków ani markdown poza myślnikami punktów."""
+* <punkt>
+* <punkt>
+Bez dodatkowych komentarzy, nagłówków ani markdown poza gwiazdkami punktów."""
 
 
 def suggest_inspection_summary(nc_points, ok_count, total_count):
@@ -146,9 +146,9 @@ def suggest_inspection_summary(nc_points, ok_count, total_count):
                 continue
             line = re.sub(r"^[-•*]\s*", "", line)
             if section == "good":
-                good_lines.append(f"- {line}")
+                good_lines.append(f"* {line}")
             elif section == "fix":
-                fix_lines.append(f"- {line}")
+                fix_lines.append(f"* {line}")
         summary_good = "\n".join(good_lines) or None
         summary_to_fix = "\n".join(fix_lines) or None
         if not summary_good and not summary_to_fix:

@@ -182,6 +182,8 @@
 
   <div class="card">
     <h2 style="font-size:1.05rem;">Podsumowanie inspekcji</h2>
+    <button type="button" id="ai-summary-btn" class="btn btn-outline btn-sm" style="margin-bottom:1rem;">🤖 Wygeneruj podsumowanie AI</button>
+    <span id="ai-summary-status" class="muted" style="margin-left:.5rem;"></span>
     <div class="field">{{ summary_form.summary_good.label_tag }}{{ summary_form.summary_good }}</div>
     <div class="field">{{ summary_form.summary_to_fix.label_tag }}{{ summary_form.summary_to_fix }}</div>
     <p class="help-text">Adresy odbiorców raportu można uzupełnić później, na ekranie szczegółów inspekcji.</p>
@@ -190,4 +192,43 @@
   <button type="submit" class="btn btn-primary">Zapisz inspekcję</button>
 </form>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/checklist.js' %}"></script>{% endblock %}
+{% block extra_js %}
+<script src="{% static 'js/checklist.js' %}"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  var btn = document.getElementById("ai-summary-btn");
+  var statusEl = document.getElementById("ai-summary-status");
+  var goodField = document.getElementById("id_summary_good");
+  var toFixField = document.getElementById("id_summary_to_fix");
+  var form = document.getElementById("inspection-form");
+  if (!btn || !form) return;
+
+  btn.addEventListener("click", function () {
+    var csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
+    statusEl.textContent = "Analizuję wpisane niezgodności…";
+    btn.disabled = true;
+
+    fetch("{% url 'suggest_inspection_summary_draft' template_obj.pk %}", {
+      method: "POST", body: new FormData(form), headers: { "X-CSRFToken": csrfToken },
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        btn.disabled = false;
+        if (data.summary_good || data.summary_to_fix) {
+          if (data.summary_good) goodField.value = data.summary_good;
+          if (data.summary_to_fix) toFixField.value = data.summary_to_fix;
+          statusEl.textContent = "Propozycja wstawiona - sprawdź i popraw przed zapisem.";
+        } else if (!data.available) {
+          statusEl.textContent = "Funkcja AI nie jest skonfigurowana (brak danych dostępowych Azure OpenAI).";
+        } else {
+          statusEl.textContent = data.error || "Nie udało się wygenerować podsumowania (zaznacz najpierw jakieś niezgodności).";
+        }
+      })
+      .catch(function () {
+        btn.disabled = false;
+        statusEl.textContent = "Błąd połączenia z usługą AI.";
+      });
+  });
+});
+</script>
+{% endblock %}

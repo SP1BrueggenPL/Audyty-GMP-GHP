@@ -201,6 +201,63 @@ def suggest_inspection_summary_view(request):
     return JsonResponse(result)
 
 
+def _extract_draft_nc_points(request, sections, all_items):
+    """Jak _generate_inspection_summary, ale na podstawie POST z formularza
+    NOWEJ, jeszcze niezapisanej inspekcji (te same pola co przy zapisie:
+    item_X_result/_description/_extra-N-*, extra-N-*)."""
+    nc_points = []
+    nc_item_ids = set()
+    for section in sections:
+        for subsection in section.subsections.all():
+            for item in subsection.items.all():
+                result = request.POST.get(f"item_{item.id}_result", ItemResult.OK)
+                if result != ItemResult.NC:
+                    continue
+                description = request.POST.get(f"item_{item.id}_description", "").strip()
+                if description:
+                    nc_points.append((item.number, description))
+                    nc_item_ids.add(item.id)
+
+                item_extra_total = int(request.POST.get(f"item_{item.id}_extra-TOTAL_FORMS", 0) or 0)
+                for ei in range(item_extra_total):
+                    edescription = request.POST.get(f"item_{item.id}_extra-{ei}-description", "").strip()
+                    if edescription:
+                        nc_points.append((item.number, edescription))
+                        nc_item_ids.add(item.id)
+
+    extra_total = int(request.POST.get("extra-TOTAL_FORMS", 0) or 0)
+    for i in range(extra_total):
+        prefix = f"extra-{i}-"
+        description = request.POST.get(prefix + "description", "").strip()
+        if not description:
+            continue
+        item_id = request.POST.get(prefix + "item") or None
+        label = ""
+        if item_id:
+            chosen_item = next((it for it in all_items if str(it.id) == item_id), None)
+            if chosen_item:
+                label = chosen_item.number
+                nc_item_ids.add(chosen_item.id)
+        nc_points.append((label, description))
+
+    total_count = len(all_items)
+    ok_count = max(0, total_count - len(nc_item_ids))
+    return nc_points, ok_count, total_count
+
+
+@login_required
+def suggest_inspection_summary_draft(request, template_id):
+    """AJAX: propozycja podsumowania dla NOWEJ inspekcji, jeszcze przed zapisem -
+    dane brane bezpośrednio z formularza (patrz _extract_draft_nc_points),
+    bez zapisu do bazy."""
+    template = get_object_or_404(ChecklistTemplate, pk=template_id, is_active=True)
+    sections = list(template.sections.prefetch_related("subsections__items").all())
+    all_items = [it for s in sections for sub in s.subsections.all() for it in sub.items.all()]
+    nc_points, ok_count, total_count = _extract_draft_nc_points(request, sections, all_items)
+    result = suggest_inspection_summary(nc_points, ok_count, total_count)
+    return JsonResponse(result)
+
+
 @require_POST
 @login_required
 def inspection_generate_summary(request, pk):
