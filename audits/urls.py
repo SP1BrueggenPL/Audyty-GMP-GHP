@@ -12,6 +12,7 @@ urlpatterns = [
     path("inspekcje/<int:pk>/usun/", views.inspection_delete, name="inspection_delete"),
     path("inspekcje/<int:pk>/raport/", views.inspection_report, name="inspection_report"),
     path("inspekcje/<int:pk>/raport/pdf/", views.inspection_report_pdf, name="inspection_report_pdf"),
+    path("inspekcje/<int:pk>/podsumowanie-ai/", views.inspection_generate_summary, name="inspection_generate_summary"),
     path("niezgodnosci/", views.nonconformity_list, name="nonconformity_list"),
     path("niezgodnosci/nowa/", views.nonconformity_new, name="nonconformity_new"),
     path("niezgodnosci/<int:pk>/", views.nonconformity_detail, name="nonconformity_detail"),

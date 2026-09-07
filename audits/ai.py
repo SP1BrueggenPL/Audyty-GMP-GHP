@@ -11,6 +11,7 @@ Jeśli te wartości nie są ustawione, funkcja zwraca available=False i UI
 po prostu nie pokazuje podpowiedzi - reszta aplikacji działa normalnie.
 """
 import base64
+import re
 
 from django.conf import settings
 
@@ -80,18 +81,23 @@ def suggest_nc_description(photo=None, past_examples=None):
 SUMMARY_PROMPT_TEMPLATE = """Jesteś asystentem audytora GMP/GHP w zakładzie produkcji spożywczej.
 Na podstawie listy niezgodności znalezionych podczas inspekcji (tylko numer punktu checklisty
 i opis - bez nazwisk, działów ani lokalizacji) napisz podsumowanie inspekcji metodą "hamburgera":
-1) krótkie, konkretne pozytywne otwarcie - co poszło dobrze (np. liczba punktów bez niezgodności,
-   ogólne wrażenie porządku), 2) rzeczowe, konstruktywne zestawienie tego, co wymaga poprawy,
-   bez oskarżycielskiego tonu, 3) krótkie pozytywne zamknięcie/zachęta na przyszłość.
+1) krótkie, konkretne pozytywy - co poszło dobrze (np. liczba punktów bez niezgodności,
+   ogólne wrażenie porządku), 2) rzeczowe, konstruktywne punkty tego, co wymaga poprawy,
+   bez oskarżycielskiego tonu, 3) krótka pozytywna zachęta na przyszłość.
 
 Punkty bez niezgodności: {ok_count} z {total_count}.
 Znalezione niezgodności (punkt - opis):
 {items}
 
-Odpowiedz WYŁĄCZNIE w formacie:
-CO_BYLO_OK: <tekst 2-4 zdania - punkt 1 i 3 metody hamburgera>
-DO_POPRAWY: <tekst 2-5 zdań - punkt 2 metody hamburgera, konkretne i rzeczowe>
-Bez dodatkowych komentarzy, nagłówków ani markdown."""
+Odpowiedz WYŁĄCZNIE w formacie wypunktowanym (każdy punkt w osobnej linii,
+zaczynający się od "- ", 1 krótkie zdanie na punkt, 2-4 punkty na sekcję):
+CO_BYLO_OK:
+- <punkt>
+- <punkt>
+DO_POPRAWY:
+- <punkt>
+- <punkt>
+Bez dodatkowych komentarzy, nagłówków ani markdown poza myślnikami punktów."""
 
 
 def suggest_inspection_summary(nc_points, ok_count, total_count):
@@ -126,12 +132,25 @@ def suggest_inspection_summary(nc_points, ok_count, total_count):
             temperature=0.4,
         )
         text = response.choices[0].message.content.strip()
-        summary_good, summary_to_fix = None, None
-        for line in text.splitlines():
-            if line.upper().startswith("CO_BYLO_OK:"):
-                summary_good = line.split(":", 1)[1].strip()
-            elif line.upper().startswith("DO_POPRAWY:"):
-                summary_to_fix = line.split(":", 1)[1].strip()
+        good_lines, fix_lines = [], []
+        section = None
+        for raw_line in text.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            if line.upper().startswith("CO_BYLO_OK"):
+                section = "good"
+                continue
+            if line.upper().startswith("DO_POPRAWY"):
+                section = "fix"
+                continue
+            line = re.sub(r"^[-•*]\s*", "", line)
+            if section == "good":
+                good_lines.append(f"- {line}")
+            elif section == "fix":
+                fix_lines.append(f"- {line}")
+        summary_good = "\n".join(good_lines) or None
+        summary_to_fix = "\n".join(fix_lines) or None
         if not summary_good and not summary_to_fix:
             # model nie trzymał się formatu - zwróć całość jako "do poprawy", niech audytor poprawi
             summary_to_fix = text

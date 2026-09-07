@@ -180,19 +180,49 @@ def suggest_nonconformity(request):
     return JsonResponse(result)
 
 
-@login_required
-def suggest_inspection_summary_view(request):
-    """AJAX: propozycja podsumowania inspekcji metodą hamburgera (Azure OpenAI).
-    Do promptu trafiają WYŁĄCZNIE punkt checklisty i opis niezgodności - bez
-    nazwisk, działów ani lokalizacji (dane zanonimizowane)."""
-    inspection_id = request.POST.get("inspection_id")
-    inspection = get_object_or_404(Inspection, pk=inspection_id)
+def _generate_inspection_summary(inspection):
+    """Woła AI z zanonimizowanymi danymi (WYŁĄCZNIE punkt checklisty i opis
+    niezgodności - bez nazwisk, działów ani lokalizacji). Zwraca dict
+    {available, summary_good, summary_to_fix, error}."""
     ncs = inspection.nonconformities.all()
     nc_points = [(nc.checklist_point_label, nc.description) for nc in ncs]
     total_count = len(ChecklistItem.objects.filter(subsection__section__template=inspection.template))
     ok_count = max(0, total_count - len({nc.checklist_item_id for nc in ncs if nc.checklist_item_id}))
-    result = suggest_inspection_summary(nc_points, ok_count, total_count)
+    return suggest_inspection_summary(nc_points, ok_count, total_count)
+
+
+@login_required
+def suggest_inspection_summary_view(request):
+    """AJAX: propozycja podsumowania inspekcji (używane na ekranie raportu -
+    wypełnia pola formularza, nic nie zapisuje samo z siebie)."""
+    inspection_id = request.POST.get("inspection_id")
+    inspection = get_object_or_404(Inspection, pk=inspection_id)
+    result = _generate_inspection_summary(inspection)
     return JsonResponse(result)
+
+
+@require_POST
+@login_required
+def inspection_generate_summary(request, pk):
+    """Generuje i od razu zapisuje podsumowanie AI z poziomu widoku inspekcji
+    (bez przechodzenia przez ekran raportu)."""
+    inspection = get_object_or_404(Inspection, pk=pk)
+    if not _require_inspection_editor(request):
+        return redirect("inspection_detail", pk=pk)
+
+    result = _generate_inspection_summary(inspection)
+    if result.get("summary_good") or result.get("summary_to_fix"):
+        if result.get("summary_good"):
+            inspection.summary_good = result["summary_good"]
+        if result.get("summary_to_fix"):
+            inspection.summary_to_fix = result["summary_to_fix"]
+        inspection.save(update_fields=["summary_good", "summary_to_fix", "updated_at"])
+        messages.success(request, "Podsumowanie AI wygenerowane i zapisane.")
+    elif not result.get("available"):
+        messages.error(request, "Funkcja AI nie jest skonfigurowana (brak danych dostępowych Azure OpenAI).")
+    else:
+        messages.error(request, result.get("error") or "Nie udało się wygenerować podsumowania.")
+    return redirect("inspection_detail", pk=inspection.pk)
 
 
 @login_required

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load audit_extras %}
 {% block title %}Inspekcja {{ inspection.inspected_at|date:"d.m.Y" }}{% endblock %}
 {% block content %}
 <div class="page-header">
@@ -52,5 +53,24 @@
     {% endfor %}
     </tbody>
   </table>
+</div>
+
+<div class="card">
+  <h2 style="font-size:1.05rem;">Podsumowanie</h2>
+  {% if inspection.summary_good or inspection.summary_to_fix %}
+    <h3 class="subhead">🙂 Co było ok</h3>
+    <ul>{% for line in inspection.summary_good|bulletlines %}<li>{{ line }}</li>{% empty %}<li class="muted">—</li>{% endfor %}</ul>
+    <h3 class="subhead">😐 Co jest do poprawki</h3>
+    <ul>{% for line in inspection.summary_to_fix|bulletlines %}<li>{{ line }}</li>{% empty %}<li class="muted">—</li>{% endfor %}</ul>
+  {% else %}
+    <p class="muted">Podsumowanie nie zostało jeszcze utworzone.</p>
+  {% endif %}
+  {% if user.has_full_access %}
+  <form method="post" action="{% url 'inspection_generate_summary' inspection.pk %}" style="margin-top:.5rem;">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-outline btn-sm">🤖 Wygeneruj podsumowanie AI</button>
+  </form>
+  <p class="help-text">Nadpisuje istniejące podsumowanie propozycją AI (na bazie zanonimizowanych niezgodności) - można ją później doprecyzować na ekranie „Raport / wyślij”.</p>
+  {% endif %}
 </div>
 {% endblock %}
