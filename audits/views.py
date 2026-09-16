@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from accounts.models import Department, Role
+from accounts.models import Department, eligible_area_users
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
@@ -149,10 +149,13 @@ def inspection_type_select(request):
 
 @login_required
 def users_by_shift(request):
-    """AJAX: zwraca Użytkowników obszaru pasujących do działu inspekcji (wyznaczonego
-    z area_code/area_detail), dodatkowo zawężonych po zmianie gdy ta ma zastosowanie.
-    Filtrowanie wyłącznie po zmianie nie działało dla działów bez zmian (np. Techniczny/
-    WED, gdzie zmiana to zawsze "n/d") - stąd dział jako podstawowe kryterium."""
+    """AJAX: zwraca kandydatów na przedstawiciela obszaru/odpowiedzialnego za
+    niezgodność dla działu inspekcji (wyznaczonego z area_code/area_detail) -
+    patrz accounts.models.eligible_area_users (rola "Użytkownik obszaru" z
+    dopasowanym działem ORAZ role działowe typu Pakownia/Produkcja, Techniczny,
+    Logistyka, którym dział wynika z roli). Dodatkowo zawężone po zmianie, gdy
+    ta ma zastosowanie - dla działów bez zmian (Techniczny/WED, zmiana zawsze
+    "n/d") filtr zmiany jest pomijany."""
     area_code = request.GET.get("area_code", "")
     area_detail = request.GET.get("area_detail", "")
     shift = request.GET.get("shift", "")
@@ -160,9 +163,8 @@ def users_by_shift(request):
     if not area_code and not shift:
         return JsonResponse({"users": []})
 
-    qs = User.objects.filter(role=Role.UZYTKOWNIK_OBSZARU, is_active=True)
-    if area_code:
-        qs = qs.filter(department=derive_department(area_code, area_detail))
+    department = derive_department(area_code, area_detail) if area_code else None
+    qs = eligible_area_users(department).filter(is_active=True)
     if shift and shift != Shift.ND:
         qs = qs.filter(shift=shift)
     qs = qs.order_by("last_name", "first_name")

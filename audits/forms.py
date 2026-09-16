@@ -1,4 +1,4 @@
-from accounts.models import Role
+from accounts.models import eligible_area_users
 from django import forms
 from django.contrib.auth import get_user_model
 
@@ -113,8 +113,9 @@ class AuditorReviewForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        department = self.instance.department if self.instance else None
         self.fields["responsible_person"].queryset = (
-            User.objects.filter(role=Role.UZYTKOWNIK_OBSZARU).order_by("last_name", "first_name")
+            eligible_area_users(department).order_by("last_name", "first_name")
         )
 
 
@@ -166,6 +167,4 @@ class StandaloneNonConformityForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["responsible_person"].queryset = (
-            User.objects.filter(role=Role.UZYTKOWNIK_OBSZARU).order_by("last_name", "first_name")
-        )
+        self.fields["responsible_person"].queryset = eligible_area_users().order_by("last_name", "first_name")

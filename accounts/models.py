@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.db.models import Q
 
 
 class Department(models.TextChoices):
@@ -36,6 +37,26 @@ ROLE_DEPARTMENTS = {
 }
 
 ROLES_WITH_FULL_ACCESS = {Role.ADMIN, Role.HELPDESK, Role.AUDYTOR}
+
+
+def eligible_area_users(department=None):
+    """Osoby, które można wybrać jako przedstawiciela obszaru inspekcji albo
+    osobę odpowiedzialną za niezgodność. Obejmuje DWIE grupy - żeby nie
+    wymagać przepisywania roli osobom, które już mają rolę działową:
+    1) rola "Użytkownik obszaru" z dopasowanym polem Dział,
+    2) rola działowa (Pakownia/Produkcja, Techniczny, Logistyka), której
+       ROLE_DEPARTMENTS obejmuje dany dział - te role już z definicji
+       należą do tego działu, niezależnie od pola Dział na koncie.
+    Gdy department=None, zwraca wszystkich z roli "Użytkownik obszaru" oraz
+    wszystkich z jakąkolwiek rolą działową (do ogólnych list wyboru)."""
+    if department:
+        dept_roles = [role for role, depts in ROLE_DEPARTMENTS.items() if department in depts]
+        return User.objects.filter(
+            Q(role=Role.UZYTKOWNIK_OBSZARU, department=department) | Q(role__in=dept_roles)
+        )
+    return User.objects.filter(
+        Q(role=Role.UZYTKOWNIK_OBSZARU) | Q(role__in=list(ROLE_DEPARTMENTS.keys()))
+    )
 
 
 class User(AbstractUser):

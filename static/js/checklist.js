@@ -56,8 +56,9 @@ document.addEventListener("DOMContentLoaded", function () {
   function renderDualList() {
     if (!repListEl) return;
     if (!allCandidates.length) {
-      repListEl.innerHTML = '<span class="muted">Brak osób do wyboru dla tego działu. Sprawdź w Użytkownicy, czy potrzebne osoby mają ' +
-        'jednocześnie: rolę „Użytkownik obszaru” ORAZ ustawiony Dział zgodny z tym obszarem (samo zaznaczenie roli nie wystarczy).</span>';
+      repListEl.innerHTML = '<span class="muted">Brak osób do wyboru dla tego działu. Kandydatem może być osoba z rolą działową ' +
+        '(Pakownia/Produkcja, Techniczny, Logistyka) pasującą do tego obszaru, albo z rolą „Użytkownik obszaru” i dopasowanym ' +
+        'polem Dział w Użytkownicy → edycja konta.</span>';
       currentReps = [];
       refreshResponsibleSelects();
       return;
