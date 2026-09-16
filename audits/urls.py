@@ -10,6 +10,7 @@ urlpatterns = [
     path("inspekcje/<int:pk>/", views.inspection_detail, name="inspection_detail"),
     path("inspekcje/<int:pk>/edytuj/", views.inspection_edit, name="inspection_edit"),
     path("inspekcje/<int:pk>/usun/", views.inspection_delete, name="inspection_delete"),
+    path("inspekcje/<int:pk>/ukryj/", views.inspection_toggle_hidden, name="inspection_toggle_hidden"),
     path("inspekcje/<int:pk>/raport/", views.inspection_report, name="inspection_report"),
     path("inspekcje/<int:pk>/raport/pdf/", views.inspection_report_pdf, name="inspection_report_pdf"),
     path("inspekcje/<int:pk>/podsumowanie-ai/", views.inspection_generate_summary, name="inspection_generate_summary"),

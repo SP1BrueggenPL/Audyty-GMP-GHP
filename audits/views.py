@@ -17,6 +17,7 @@ from .ai import suggest_inspection_summary, suggest_nc_description
 from .email_acs import send_report_email
 from .pdf import render_inspection_pdf
 from .forms import (
+    WED_LOCATION_CHOICES,
     AuditorReviewForm,
     InspectionAdminEditForm,
     InspectionHeaderForm,
@@ -52,6 +53,8 @@ def _scoped_nonconformities(user):
 
 def _scoped_inspections(user):
     qs = Inspection.objects.select_related("template", "inspector")
+    if not user.is_admin_role:
+        qs = qs.filter(is_hidden=False)
     scope = user.department_scope
     if scope is None:
         return qs
@@ -168,15 +171,34 @@ def users_by_shift(request):
 
 @login_required
 def suggest_nonconformity(request):
-    """AJAX: podpowiedź opisu niezgodności (Azure OpenAI GPT-4o) na bazie zdjęcia
-    oraz wcześniej zapisanych niezgodności dla tego samego punktu checklisty."""
+    """AJAX: podpowiedź opisu niezgodności (Azure OpenAI GPT-4o) na bazie zdjęcia,
+    treści aktualnego punktu checklisty (sekcja/podsekcja/opis) i wcześniej
+    zapisanych niezgodności dla tego punktu. Dodatkowo AI dostaje pełną listę
+    punktów tego szablonu, żeby wykryć niedopasowanie zdjęcia do punktu i
+    zasugerować właściwy (pole mismatch_point/mismatch_reason w odpowiedzi)."""
     item_id = request.POST.get("item_id")
     photo = request.FILES.get("photo")
+
+    item = (
+        ChecklistItem.objects.select_related("subsection__section__template").filter(pk=item_id).first()
+        if item_id else None
+    )
     past_examples = list(
         NonConformity.objects.filter(checklist_item_id=item_id)
         .order_by("-id").values_list("description", flat=True)[:5]
     ) if item_id else []
-    result = suggest_nc_description(photo=photo, past_examples=past_examples)
+    all_points = []
+    if item is not None:
+        template = item.subsection.section.template
+        all_points = [
+            (it.number, it.description)
+            for it in ChecklistItem.objects.filter(subsection__section__template=template)
+            .select_related("subsection").order_by(
+                "subsection__section__order", "subsection__order", "order",
+            )
+        ]
+
+    result = suggest_nc_description(photo=photo, past_examples=past_examples, item=item, all_points=all_points)
     return JsonResponse(result)
 
 
@@ -426,6 +448,7 @@ def inspection_new(request, template_id):
         "summary_form": summary_form,
         "all_items": all_items,
         "item_results": ItemResult.choices,
+        "wed_location_choices": WED_LOCATION_CHOICES,
     })
 
 
@@ -627,6 +650,7 @@ def inspection_edit(request, pk):
         "item_ncs": item_ncs,
         "extra_ncs": extra_ncs,
         "area_rep_ids_csv": area_rep_ids_csv,
+        "wed_location_choices": WED_LOCATION_CHOICES,
     })
 
 
@@ -645,6 +669,22 @@ def inspection_delete(request, pk):
         return redirect("inspection_detail", pk=pk)
 
     return redirect("inspection_list")
+
+
+@require_POST
+@login_required
+def inspection_toggle_hidden(request, pk):
+    if not _require_admin(request):
+        return redirect("inspection_detail", pk=pk)
+
+    inspection = get_object_or_404(Inspection, pk=pk)
+    inspection.is_hidden = not inspection.is_hidden
+    inspection.save(update_fields=["is_hidden"])
+    if inspection.is_hidden:
+        messages.success(request, "Inspekcja ukryta z rejestru inspekcji (widoczna nadal dla QualityAdmin/Helpdesku).")
+    else:
+        messages.success(request, "Inspekcja przywrócona do rejestru inspekcji.")
+    return redirect("inspection_detail", pk=pk)
 
 
 @login_required

@@ -75,7 +75,14 @@
               <div class="field-row">
                 <div class="field">
                   <label>Lokalizacja / miejsce</label>
+                  {% if template_obj.area_code == "WED" %}
+                  <select name="item_{{ item.id }}_location">
+                    <option value="">— wybierz lokalizację —</option>
+                    {% for loc in wed_location_choices %}<option value="{{ loc }}">{{ loc }}</option>{% endfor %}
+                  </select>
+                  {% else %}
                   <input type="text" name="item_{{ item.id }}_location" placeholder="np. magazyn 2, lokacja 59-10-07">
+                  {% endif %}
                 </div>
                 <div class="field">
                   <label>Osoba odpowiedzialna za obszar</label>
@@ -130,7 +137,14 @@
         </div>
         <div class="field">
           <label>Lokalizacja / miejsce</label>
+          {% if template_obj.area_code == "WED" %}
+          <select name="extra-__prefix__-location">
+            <option value="">— wybierz lokalizację —</option>
+            {% for loc in wed_location_choices %}<option value="{{ loc }}">{{ loc }}</option>{% endfor %}
+          </select>
+          {% else %}
           <input type="text" name="extra-__prefix__-location">
+          {% endif %}
         </div>
       </div>
       <div class="field">
@@ -157,7 +171,14 @@
       <div class="field-row">
         <div class="field">
           <label>Lokalizacja / miejsce</label>
+          {% if template_obj.area_code == "WED" %}
+          <select name="item___ITEMID___extra-__prefix__-location">
+            <option value="">— wybierz lokalizację —</option>
+            {% for loc in wed_location_choices %}<option value="{{ loc }}">{{ loc }}</option>{% endfor %}
+          </select>
+          {% else %}
           <input type="text" name="item___ITEMID___extra-__prefix__-location" placeholder="np. magazyn 2, lokacja 59-10-07">
+          {% endif %}
         </div>
         <div class="field">
           <label>Osoba odpowiedzialna za obszar</label>

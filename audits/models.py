@@ -124,6 +124,11 @@ class Inspection(models.Model):
     )
 
     status = models.CharField(max_length=20, choices=InspectionStatus.choices, default=InspectionStatus.DRAFT)
+    is_hidden = models.BooleanField(
+        default=False, verbose_name="Ukryta",
+        help_text="Ukryta inspekcja znika z rejestru inspekcji dla wszystkich oprócz QualityAdmin/Helpdesku "
+                   "(nadal dostępna pod bezpośrednim linkiem).",
+    )
     summary_good = models.TextField(blank=True, verbose_name="Podsumowanie - co było ok")
     summary_to_fix = models.TextField(blank=True, verbose_name="Podsumowanie - co do poprawki")
     comment = models.TextField(blank=True, verbose_name="Komentarz")

@@ -56,7 +56,8 @@ document.addEventListener("DOMContentLoaded", function () {
   function renderDualList() {
     if (!repListEl) return;
     if (!allCandidates.length) {
-      repListEl.innerHTML = '<span class="muted">Brak Użytkowników obszaru przypisanych do tego działu (patrz Użytkownicy → edycja konta).</span>';
+      repListEl.innerHTML = '<span class="muted">Brak osób do wyboru dla tego działu. Sprawdź w Użytkownicy, czy potrzebne osoby mają ' +
+        'jednocześnie: rolę „Użytkownik obszaru” ORAZ ustawiony Dział zgodny z tym obszarem (samo zaznaczenie roli nie wystarczy).</span>';
       currentReps = [];
       refreshResponsibleSelects();
       return;
@@ -243,7 +244,11 @@ document.addEventListener("DOMContentLoaded", function () {
     var photoInput = block.querySelector(".photo-input");
     var statusEl = block.querySelector(".ai-status");
     var descField = block.querySelector(".description-field");
-    var itemId = btn.dataset.itemId || (photoInput && photoInput.dataset.itemId) || "";
+    // item-nc-list nosi data-item-id dla WSZYSTKICH bloków danego punktu (główny +
+    // dodatkowe przez "+"), więc to najpewniejsze źródło - data-item-id na przycisku
+    // dotyczy tylko bloku głównego.
+    var listEl = btn.closest(".item-nc-list");
+    var itemId = (listEl && listEl.dataset.itemId) || btn.dataset.itemId || (photoInput && photoInput.dataset.itemId) || "";
 
     if (!photoInput || !photoInput.files || !photoInput.files.length) {
       statusEl.textContent = "Najpierw dodaj zdjęcie niezgodności.";
@@ -266,8 +271,16 @@ document.addEventListener("DOMContentLoaded", function () {
           statusEl.textContent = "Podpowiedź wstawiona - sprawdź i popraw opis przed zapisem.";
         } else if (!data.available) {
           statusEl.textContent = "Funkcja AI nie jest skonfigurowana (brak danych dostępowych Azure OpenAI).";
-        } else {
+        } else if (!data.mismatch_point) {
           statusEl.textContent = data.error || "Nie udało się wygenerować podpowiedzi.";
+        }
+        if (data.mismatch_point) {
+          alert(
+            "To zdjęcie wygląda na niepasujące do bieżącego punktu.\n\n" +
+            "Sugerowany punkt: " + data.mismatch_point +
+            (data.mismatch_reason ? "\nUzasadnienie: " + data.mismatch_reason : "") +
+            "\n\nSprawdź i w razie potrzeby przenieś tę niezgodność pod właściwy punkt."
+          );
         }
       })
       .catch(function () {

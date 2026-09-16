@@ -35,7 +35,7 @@
   </thead>
   <tbody>
   {% for i in inspections %}
-    <tr onclick="window.location='{% url 'inspection_detail' i.pk %}'" style="cursor:pointer;">
+    <tr onclick="window.location='{% url 'inspection_detail' i.pk %}'" style="cursor:pointer;{% if i.is_hidden %}opacity:.55;{% endif %}">
       <td>{{ i.inspected_at|date:"d.m.Y H:i" }}</td>
       <td>{{ i.template.get_area_code_display }}</td>
       <td>{{ i.area_detail|default:"—" }}</td>
@@ -43,7 +43,10 @@
       <td>{{ i.inspector }}</td>
       <td>{% if i.result_percent %}{{ i.result_percent }}%{% else %}—{% endif %}</td>
       <td>{{ i.nonconformity_count }}</td>
-      <td><span class="badge badge-{{ i.status|lower }}">{{ i.get_status_display }}</span></td>
+      <td>
+        <span class="badge badge-{{ i.status|lower }}">{{ i.get_status_display }}</span>
+        {% if i.is_hidden %}<span class="badge" style="background:var(--charcoal);color:var(--white);">🙈</span>{% endif %}
+      </td>
       <td class="actions-cell" onclick="event.stopPropagation();">
         {% if user.is_admin_role %}
         <a href="{% url 'inspection_edit' i.pk %}" class="btn btn-outline btn-sm">✎ Edytuj</a>

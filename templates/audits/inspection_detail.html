@@ -7,10 +7,17 @@
     <h1>{{ inspection.template.get_area_code_display }} — {{ inspection.inspected_at|date:"d.m.Y H:i" }}</h1>
     <p class="muted">{{ inspection.area_detail }} · zmiana {{ inspection.shift }} · audytor: {{ inspection.inspector }}</p>
   </div>
-  <div style="display:flex;gap:.6rem;">
+  <div style="display:flex;gap:.6rem;align-items:center;">
     <span class="badge badge-{{ inspection.status|lower }}">{{ inspection.get_status_display }}</span>
+    {% if inspection.is_hidden %}<span class="badge" style="background:var(--charcoal);color:var(--white);">🙈 Ukryta</span>{% endif %}
     <a href="{% url 'inspection_report' inspection.pk %}" class="btn btn-claret btn-sm">Raport / wyślij</a>
     {% if user.has_full_access %}<a href="{% url 'inspection_edit' inspection.pk %}" class="btn btn-outline btn-sm">✎ Edytuj</a>{% endif %}
+    {% if user.is_admin_role %}
+    <form method="post" action="{% url 'inspection_toggle_hidden' inspection.pk %}" style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline btn-sm">{% if inspection.is_hidden %}👁 Pokaż w rejestrze{% else %}🙈 Ukryj z rejestru{% endif %}</button>
+    </form>
+    {% endif %}
   </div>
 </div>
 

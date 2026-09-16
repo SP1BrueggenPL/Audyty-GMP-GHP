@@ -1,5 +1,6 @@
 import re
 
+from accounts.models import Role
 from django import forms
 from django.contrib.auth import get_user_model
 
@@ -54,6 +55,16 @@ class UserForm(forms.ModelForm):
         if not full_name:
             raise forms.ValidationError("Podaj imię i nazwisko.")
         return full_name
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get("role") == Role.UZYTKOWNIK_OBSZARU and not cleaned_data.get("department"):
+            self.add_error(
+                "department",
+                "Dla roli \"Użytkownik obszaru\" dział jest wymagany - inaczej ta osoba nigdy nie "
+                "pojawi się do wyboru jako przedstawiciel obszaru ani osoba odpowiedzialna za niezgodność.",
+            )
+        return cleaned_data
 
     def save(self, commit=True):
         user = super().save(commit=False)

@@ -16,6 +16,19 @@ AREA_DETAIL_CHOICES = {
     AreaCode.WED: [("DZIAŁ TECHNICZNY", "Dział techniczny (WED)")],
 }
 
+# Lokalizacje/miejsca do wyboru dla niezgodności w inspekcjach Działu Technicznego (WED) -
+# zamiast dowolnego pola tekstowego, żeby ujednolicić nazewnictwo w rejestrze i raportach.
+WED_LOCATION_CHOICES = [
+    "Warsztat elektryków (przy śluzie)",
+    "Regał DT w Magazynie (niedaleko magazynku aromatów)",
+    "Warsztat",
+    "Kontener - magazynek chemii",
+    "Kontener - magazynek części zamiennych",
+    "Magazynek elektroniki",
+    "Biuro DT (sprawdzenie dokumentacji)",
+    "Warsztat przy rampie 1",
+]
+
 
 def derive_department(area_code, area_detail):
     area_detail = (area_detail or "").upper()
