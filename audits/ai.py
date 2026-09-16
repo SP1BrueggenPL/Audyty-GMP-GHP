@@ -20,6 +20,14 @@ try:
 except ImportError:  # pragma: no cover
     AzureOpenAI = None
 
+# Domyślny timeout klienta openai to 600s - dokładnie tyle, ile wynosi limit
+# gunicorna (--timeout 600 w startup.sh). Gdy Azure OpenAI zwalnia/wisi, oba
+# limity trafiają niemal jednocześnie i gunicorn zabija JEDYNEGO workera,
+# przez co CAŁA aplikacja jest niedostępna aż do restartu. Krótszy, jawny
+# timeout sprawia, że nieudane zapytanie AI kończy się czytelnym błędem
+# zamiast wywalać cały serwer.
+REQUEST_TIMEOUT_SECONDS = 45.0
+
 PROMPT_TEMPLATE = """Jesteś asystentem audytora GMP/GHP w zakładzie produkcji spożywczej.
 Audytor jest właśnie przy tym punkcie checklisty:
 Sekcja: {section_name}
@@ -79,6 +87,8 @@ def suggest_nc_description(photo=None, past_examples=None, item=None, all_points
             azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
             api_key=settings.AZURE_OPENAI_KEY,
             api_version=settings.AZURE_OPENAI_API_VERSION,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+            max_retries=1,
         )
         image_b64 = base64.b64encode(photo.read()).decode("utf-8")
         examples_text = "\n".join(f"- {e}" for e in (past_examples or [])) or "(brak wcześniejszych przykładów)"
@@ -181,6 +191,8 @@ def suggest_inspection_summary(nc_points, ok_count, total_count):
             azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
             api_key=settings.AZURE_OPENAI_KEY,
             api_version=settings.AZURE_OPENAI_API_VERSION,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+            max_retries=1,
         )
         items_text = "\n".join(f"- {label or 'Brak punktu odniesienia'}: {desc}" for label, desc in nc_points)
 
