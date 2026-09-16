@@ -41,7 +41,19 @@
       <div class="field">{{ form.lines_not_working_cleaning.label_tag }}{{ form.lines_not_working_cleaning }}</div>
       <div class="field">{{ form.lines_not_working_stopped.label_tag }}{{ form.lines_not_working_stopped }}</div>
     </div>
-    <div class="field">{{ form.rooms_checked.label_tag }}{{ form.rooms_checked }}</div>
+    <div class="field">
+      {{ form.rooms_checked.label_tag }}
+      {% if inspection.template.area_code == "WED" %}
+      <div id="rooms-checked-list" class="rep-list">
+        {% for loc in wed_location_choices %}
+        <label style="display:flex;align-items:center;gap:.4rem;font-weight:400;">
+          <input type="checkbox" class="room-checked-checkbox" value="{{ loc }}" style="width:auto;"> {{ loc }}
+        </label>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {{ form.rooms_checked }}
+    </div>
   </div>
 
   {% for section in sections %}

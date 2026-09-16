@@ -46,8 +46,16 @@
     </div>
     {% elif template_obj.area_code == "WED" %}
     <div class="field">
-      {{ header_form.rooms_checked.label_tag }}{{ header_form.rooms_checked }}
-      <div class="help-text">{{ header_form.rooms_checked.help_text }}</div>
+      {{ header_form.rooms_checked.label_tag }}
+      <div id="rooms-checked-list" class="rep-list">
+        {% for loc in wed_location_choices %}
+        <label style="display:flex;align-items:center;gap:.4rem;font-weight:400;">
+          <input type="checkbox" class="room-checked-checkbox" value="{{ loc }}" style="width:auto;"> {{ loc }}
+        </label>
+        {% endfor %}
+      </div>
+      {{ header_form.rooms_checked }}
+      <div class="help-text">Zaznacz wszystkie sprawdzone pomieszczenia/miejsca.</div>
     </div>
     {% endif %}
   </div>

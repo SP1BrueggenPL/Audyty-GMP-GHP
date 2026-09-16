@@ -16,6 +16,30 @@ document.addEventListener("DOMContentLoaded", function () {
 
   if (!form) return;
 
+  // ---- 1b) Sprawdzone pomieszczenia/miejsca (WED) - checkboxy zamiast -----
+  // wolnego tekstu, zsynchronizowane z ukrytym polem tekstowym (bez zmian
+  // po stronie zapisu - nadal wysyła się zwykłe pole rooms_checked).
+  (function () {
+    var roomsTextarea = form.querySelector(".rooms-checked-textarea");
+    var roomsCheckboxes = form.querySelectorAll(".room-checked-checkbox");
+    if (!roomsTextarea || !roomsCheckboxes.length) return;
+
+    roomsTextarea.style.display = "none";
+    var existingLines = roomsTextarea.value.split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
+
+    function syncTextarea() {
+      var selected = Array.prototype.filter.call(roomsCheckboxes, function (c) { return c.checked; })
+        .map(function (c) { return c.value; });
+      roomsTextarea.value = selected.join("\n");
+    }
+
+    roomsCheckboxes.forEach(function (cb) {
+      if (existingLines.indexOf(cb.value) !== -1) cb.checked = true;
+      cb.addEventListener("change", syncTextarea);
+    });
+    syncTextarea();
+  })();
+
   // ---- 2) Przedstawiciele obszaru (Użytkownicy obszaru) wg działu/zmiany -
   // Widget "dostępni / wybrani": kliknięcie w dostępnego dodaje go do wybranych,
   // ✕ przy wybranym usuwa go z powrotem do dostępnych.

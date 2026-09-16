@@ -59,7 +59,8 @@ class InspectionHeaderForm(forms.Form):
         label="Linie niepracujące (postój)", required=False, widget=forms.Textarea(attrs={"rows": 2}),
     )
     rooms_checked = forms.CharField(
-        label="Sprawdzone pomieszczenia/miejsca", required=False, widget=forms.Textarea(attrs={"rows": 3}),
+        label="Sprawdzone pomieszczenia/miejsca", required=False,
+        widget=forms.Textarea(attrs={"rows": 3, "class": "rooms-checked-textarea"}),
         help_text="Jedna pozycja na linię",
     )
 
@@ -138,7 +139,7 @@ class InspectionAdminEditForm(forms.ModelForm):
             "lines_working": forms.Textarea(attrs={"rows": 2}),
             "lines_not_working_cleaning": forms.Textarea(attrs={"rows": 2}),
             "lines_not_working_stopped": forms.Textarea(attrs={"rows": 2}),
-            "rooms_checked": forms.Textarea(attrs={"rows": 2}),
+            "rooms_checked": forms.Textarea(attrs={"rows": 2, "class": "rooms-checked-textarea"}),
             "summary_good": forms.Textarea(attrs={"rows": 3}),
             "summary_to_fix": forms.Textarea(attrs={"rows": 3}),
             "comment": forms.Textarea(attrs={"rows": 3}),
