@@ -31,9 +31,13 @@
       </div>
     </div>
     <div class="field-row">
-      <div class="field">{{ form.role.label_tag }}{{ form.role }}</div>
-      <div class="field">{{ form.department.label_tag }}{{ form.department }}</div>
-      <div class="field">{{ form.shift.label_tag }}{{ form.shift }}<div class="help-text">{{ form.shift.help_text }}</div></div>
+      <div class="field">{{ form.role.label_tag }}{{ form.role }}{{ form.role.errors }}</div>
+      <div class="field" id="department-field-wrap">
+        {{ form.department.label_tag }}{{ form.department }}
+        <div class="help-text" id="department-area-user-hint" style="display:none;">Rola "Użytkownik obszaru" nie ma przypisanego działu - jest widoczna do wyboru dla każdego obszaru.</div>
+        {{ form.department.errors }}
+      </div>
+      <div class="field">{{ form.shift.label_tag }}{{ form.shift }}<div class="help-text">{{ form.shift.help_text }}</div>{{ form.shift.errors }}</div>
     </div>
     <div class="field-row">
       <div class="field" style="display:flex;align-items:center;gap:.5rem;">
@@ -48,6 +52,25 @@
     <button type="submit" class="btn btn-primary">{% if is_new %}Utwórz użytkownika{% else %}Zapisz zmiany{% endif %}</button>
   </form>
 </div>
+
+<script>
+(function () {
+  var roleSelect = document.getElementById("{{ form.role.id_for_label }}");
+  var deptSelect = document.getElementById("{{ form.department.id_for_label }}");
+  var deptHint = document.getElementById("department-area-user-hint");
+  if (!roleSelect || !deptSelect) return;
+
+  function syncDepartmentField() {
+    var isAreaUser = roleSelect.value === "UZYTKOWNIK_OBSZARU";
+    deptSelect.disabled = isAreaUser;
+    if (deptHint) deptHint.style.display = isAreaUser ? "" : "none";
+    if (isAreaUser) deptSelect.value = "";
+  }
+
+  roleSelect.addEventListener("change", syncDepartmentField);
+  syncDepartmentField();
+})();
+</script>
 
 {% if not is_new %}
 <div class="card">

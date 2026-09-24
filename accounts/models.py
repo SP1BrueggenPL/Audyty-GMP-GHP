@@ -42,7 +42,8 @@ ROLES_WITH_FULL_ACCESS = {Role.ADMIN, Role.HELPDESK, Role.AUDYTOR}
 def eligible_area_users(department=None, shift=None):
     """Osoby, które można wybrać jako przedstawiciela obszaru inspekcji albo
     osobę odpowiedzialną za niezgodność. Obejmuje TRZY grupy:
-    1) rola "Użytkownik obszaru" z dopasowanym polem Dział,
+    1) rola "Użytkownik obszaru" - bez działu, uniwersalna dla każdego
+       obszaru/działu (ta rola celowo nie ma pola Dział),
     2) rola działowa (Pakownia/Produkcja, Techniczny, Logistyka), której
        ROLE_DEPARTMENTS obejmuje dany dział - te role już z definicji
        należą do tego działu, niezależnie od pola Dział na koncie,
@@ -53,10 +54,10 @@ def eligible_area_users(department=None, shift=None):
     obszaru" oraz wszystkich z jakąkolwiek rolą działową (do ogólnych list
     wyboru, np. formularz ad-hoc niezgodności bez znanego działu/zmiany)."""
     if department or shift:
-        query = Q(pk__in=[])  # pusty start, żeby móc |= dalej
+        query = Q(role=Role.UZYTKOWNIK_OBSZARU)  # uniwersalna, zawsze widoczna
         if department:
             dept_roles = [role for role, depts in ROLE_DEPARTMENTS.items() if department in depts]
-            query |= Q(role=Role.UZYTKOWNIK_OBSZARU, department=department) | Q(role__in=dept_roles)
+            query |= Q(role__in=dept_roles)
         if shift:
             query |= Q(shift=shift)
         return User.objects.filter(query)

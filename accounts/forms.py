@@ -58,12 +58,8 @@ class UserForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-        if cleaned_data.get("role") == Role.UZYTKOWNIK_OBSZARU and not cleaned_data.get("department"):
-            self.add_error(
-                "department",
-                "Dla roli \"Użytkownik obszaru\" dział jest wymagany - inaczej ta osoba nigdy nie "
-                "pojawi się do wyboru jako przedstawiciel obszaru ani osoba odpowiedzialna za niezgodność.",
-            )
+        if cleaned_data.get("role") == Role.UZYTKOWNIK_OBSZARU:
+            cleaned_data["department"] = ""
         return cleaned_data
 
     def save(self, commit=True):
