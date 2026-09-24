@@ -150,12 +150,13 @@ def inspection_type_select(request):
 @login_required
 def users_by_shift(request):
     """AJAX: zwraca kandydatów na przedstawiciela obszaru/odpowiedzialnego za
-    niezgodność dla działu inspekcji (wyznaczonego z area_code/area_detail) -
-    patrz accounts.models.eligible_area_users (rola "Użytkownik obszaru" z
-    dopasowanym działem ORAZ role działowe typu Pakownia/Produkcja, Techniczny,
-    Logistyka, którym dział wynika z roli). Dodatkowo zawężone po zmianie, gdy
-    ta ma zastosowanie - dla działów bez zmian (Techniczny/WED, zmiana zawsze
-    "n/d") filtr zmiany jest pomijany."""
+    niezgodność - patrz accounts.models.eligible_area_users. Obejmuje osoby
+    pasujące do działu (rola "Użytkownik obszaru" z dopasowanym Działem albo
+    rola działowa typu Pakownia/Produkcja, Techniczny, Logistyka) ORAZ
+    KAŻDĄ osobę przypisaną do wskazanej zmiany, niezależnie od jej roli -
+    na inspekcji może pomagać dowolna osoba z tej samej zmiany. Dla działów
+    bez zmian (Techniczny/WED, zmiana zawsze "n/d") filtr zmiany po prostu
+    nic nie dokłada (żadna osoba nie ma shift="n/d")."""
     area_code = request.GET.get("area_code", "")
     area_detail = request.GET.get("area_detail", "")
     shift = request.GET.get("shift", "")
@@ -164,10 +165,8 @@ def users_by_shift(request):
         return JsonResponse({"users": []})
 
     department = derive_department(area_code, area_detail) if area_code else None
-    qs = eligible_area_users(department).filter(is_active=True)
-    if shift and shift != Shift.ND:
-        qs = qs.filter(shift=shift)
-    qs = qs.order_by("last_name", "first_name")
+    effective_shift = shift if shift and shift != Shift.ND else None
+    qs = eligible_area_users(department, effective_shift).filter(is_active=True).order_by("last_name", "first_name")
     return JsonResponse({"users": [{"id": u.pk, "name": str(u)} for u in qs]})
 
 

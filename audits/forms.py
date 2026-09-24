@@ -115,8 +115,9 @@ class AuditorReviewForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         department = self.instance.department if self.instance else None
+        shift = self.instance.shift if self.instance else None
         self.fields["responsible_person"].queryset = (
-            eligible_area_users(department).order_by("last_name", "first_name")
+            eligible_area_users(department, shift).order_by("last_name", "first_name")
         )
 
 

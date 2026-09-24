@@ -39,21 +39,27 @@ ROLE_DEPARTMENTS = {
 ROLES_WITH_FULL_ACCESS = {Role.ADMIN, Role.HELPDESK, Role.AUDYTOR}
 
 
-def eligible_area_users(department=None):
+def eligible_area_users(department=None, shift=None):
     """Osoby, które można wybrać jako przedstawiciela obszaru inspekcji albo
-    osobę odpowiedzialną za niezgodność. Obejmuje DWIE grupy - żeby nie
-    wymagać przepisywania roli osobom, które już mają rolę działową:
+    osobę odpowiedzialną za niezgodność. Obejmuje TRZY grupy:
     1) rola "Użytkownik obszaru" z dopasowanym polem Dział,
     2) rola działowa (Pakownia/Produkcja, Techniczny, Logistyka), której
        ROLE_DEPARTMENTS obejmuje dany dział - te role już z definicji
-       należą do tego działu, niezależnie od pola Dział na koncie.
-    Gdy department=None, zwraca wszystkich z roli "Użytkownik obszaru" oraz
-    wszystkich z jakąkolwiek rolą działową (do ogólnych list wyboru)."""
-    if department:
-        dept_roles = [role for role, depts in ROLE_DEPARTMENTS.items() if department in depts]
-        return User.objects.filter(
-            Q(role=Role.UZYTKOWNIK_OBSZARU, department=department) | Q(role__in=dept_roles)
-        )
+       należą do tego działu, niezależnie od pola Dział na koncie,
+    3) KAŻDA osoba (niezależnie od roli) przypisana do wskazanej zmiany -
+       na inspekcji może pomagać/być odpowiedzialna dowolna osoba z tej
+       samej zmiany, nie tylko ta z "właściwą" rolą.
+    Gdy department i shift to None, zwraca wszystkich z roli "Użytkownik
+    obszaru" oraz wszystkich z jakąkolwiek rolą działową (do ogólnych list
+    wyboru, np. formularz ad-hoc niezgodności bez znanego działu/zmiany)."""
+    if department or shift:
+        query = Q(pk__in=[])  # pusty start, żeby móc |= dalej
+        if department:
+            dept_roles = [role for role, depts in ROLE_DEPARTMENTS.items() if department in depts]
+            query |= Q(role=Role.UZYTKOWNIK_OBSZARU, department=department) | Q(role__in=dept_roles)
+        if shift:
+            query |= Q(shift=shift)
+        return User.objects.filter(query)
     return User.objects.filter(
         Q(role=Role.UZYTKOWNIK_OBSZARU) | Q(role__in=list(ROLE_DEPARTMENTS.keys()))
     )

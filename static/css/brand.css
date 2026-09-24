@@ -484,6 +484,47 @@ table.nice tr:hover { background: #FBEFEA; }
   padding-top: 0.9rem;
 }
 
+/* Akumulator zdjęć (miniatury + licznik X/10) i przycisk dyktowania opisu. */
+.photo-upload-wrap { margin-top: 0.5rem; }
+
+.photo-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.photo-thumb {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.photo-thumb-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(20, 15, 17, 0.72);
+  color: var(--white);
+  font-size: 0.7rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.photo-count { font-size: 0.78rem; }
+
+.mic-btn { margin-top: 0.5rem; margin-left: 0.4rem; }
+.mic-btn.mic-active { background: var(--coral); color: var(--white); border-color: var(--coral); }
+
 .extra-nc-block {
   border: 1.5px dashed var(--steel);
   border-radius: var(--radius);
