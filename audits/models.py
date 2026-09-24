@@ -266,7 +266,7 @@ class NonConformity(models.Model):
 
     responsible_person = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name="assigned_nonconformities", verbose_name="Osoba odpowiedzialna za obszar",
+        related_name="assigned_nonconformities", verbose_name="Osoba odpowiedzialna za niezgodność",
     )
 
     # Wypełnia osoba odpowiedzialna za obszar
