@@ -84,6 +84,22 @@ class InspectionSummaryForm(forms.Form):
         widget=forms.TextInput(attrs={"placeholder": "np. jan.kowalski@brueggen.com, dyrekcja@brueggen.com"}),
     )
 
+    def clean_report_recipients(self):
+        raw = self.cleaned_data.get("report_recipients", "")
+        addresses = [a.strip() for a in raw.split(",") if a.strip()]
+        invalid = []
+        for address in addresses:
+            try:
+                forms.EmailField().clean(address)
+            except forms.ValidationError:
+                invalid.append(address)
+        if invalid:
+            raise forms.ValidationError(
+                "Nieprawidłowy adres e-mail: " + ", ".join(invalid) +
+                ". Podaj adresy rozdzielone przecinkami, np. jan.kowalski@brueggen.com, dyrekcja@brueggen.com."
+            )
+        return ", ".join(addresses)
+
 
 class ResponsibleActionForm(forms.ModelForm):
     """Część formularza wypełniana przez osobę odpowiedzialną za obszar."""

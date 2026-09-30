@@ -6,6 +6,19 @@ from django.utils import timezone
 from accounts.models import Department
 
 
+def nc_counts_against_shift(responsible_person, inspection_shift):
+    """Niezgodność odejmuje punkty kontrolowanej zmianie, chyba że osoba
+    odpowiedzialna jest jawnie z INNEJ, konkretnej zmiany niż audytowana - wtedy
+    to jej zmiana odpowiada za problem, a nie zmiana objęta tym audytem.
+    Brak osoby odpowiedzialnej, brak jej zmiany, albo audyt bez konkretnej
+    zmiany (WED/Techniczny - "n/d") - liczy się tak jak dotychczas (odejmuje)."""
+    if not responsible_person or not responsible_person.shift:
+        return True
+    if inspection_shift not in ("A", "B", "C", "D"):
+        return True
+    return responsible_person.shift == inspection_shift
+
+
 class AreaCode(models.TextChoices):
     """Typ checklisty / obszaru, dla którego audytor wybiera formularz."""
     WCE_WPP = "WCE_WPP", "WCE/WPP - Produkcja i Pakownia"
@@ -168,10 +181,12 @@ class Inspection(models.Model):
     @property
     def extra_nc_penalty(self):
         """Suma wag punktowych dodatkowych niezgodności - waga punktu checklisty,
-        do którego są przypisane, albo 1 pkt dla niezgodności bez punktu odniesienia."""
+        do którego są przypisane, albo 1 pkt dla niezgodności bez punktu odniesienia.
+        Pomija niezgodności przypisane osobie z innej zmiany niż audytowana."""
         return sum(
             (nc.checklist_item.penalty_weight if nc.checklist_item_id else 1)
-            for nc in self.nonconformities.filter(is_extra=True).select_related("checklist_item")
+            for nc in self.nonconformities.filter(is_extra=True).select_related("checklist_item", "responsible_person")
+            if nc_counts_against_shift(nc.responsible_person, self.shift)
         )
 
     @property

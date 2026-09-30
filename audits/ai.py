@@ -152,33 +152,49 @@ def suggest_nc_description(photo=None, past_examples=None, item=None, all_points
                 "mismatch_reason": None, "error": str(exc)}
 
 
-SUMMARY_PROMPT_TEMPLATE = """Jesteś asystentem audytora GMP/GHP w zakładzie produkcji spożywczej.
-Na podstawie listy niezgodności znalezionych podczas inspekcji (tylko numer punktu checklisty
-i opis - bez nazwisk, działów ani lokalizacji) napisz podsumowanie inspekcji metodą "hamburgera":
-1) krótkie, konkretne pozytywy - co poszło dobrze (np. liczba punktów bez niezgodności,
-   ogólne wrażenie porządku), 2) rzeczowe, konstruktywne punkty tego, co wymaga poprawy,
-   bez oskarżycielskiego tonu, 3) krótka pozytywna zachęta na przyszłość.
+POSITIVE_PROMPT_TEMPLATE = """Jesteś asystentem audytora GMP/GHP w zakładzie produkcji spożywczej.
+Podczas inspekcji {ok_count} z {total_count} punktów checklisty było zgodnych (bez niezgodności).
+Napisz 2-3 krótkie, konkretne, pozytywne zdania podsumowujące ten dobry wynik i ogólne wrażenie
+porządku - bez wymieniania konkretnych niezgodności (nie znasz ich treści, nie wspominaj o nich).
 
-Punkty bez niezgodności: {ok_count} z {total_count}.
+Odpowiedz WYŁĄCZNIE w formacie wypunktowanym, każdy punkt w osobnej linii zaczynającej się
+od "* ", bez dodatkowych komentarzy, nagłówków ani markdown poza gwiazdkami punktów."""
+
+IMPROVEMENT_PROMPT_TEMPLATE = """Jesteś asystentem audytora GMP/GHP w zakładzie produkcji spożywczej.
+Poniżej lista niezgodności znalezionych podczas inspekcji (tylko numer punktu checklisty i opis -
+bez nazwisk, działów ani lokalizacji). Napisz rzeczowe, konstruktywne podsumowanie tego, co wymaga
+poprawy - bez oskarżycielskiego tonu, w 2-4 krótkich punktach (możesz grupować podobne niezgodności).
+
 Znalezione niezgodności (punkt - opis):
 {items}
 
-Odpowiedz WYŁĄCZNIE w formacie wypunktowanym (każdy punkt w osobnej linii,
-zaczynający się od "* ", 1 krótkie zdanie na punkt, 2-4 punkty na sekcję):
-CO_BYLO_OK:
-* <punkt>
-* <punkt>
-DO_POPRAWY:
-* <punkt>
-* <punkt>
-Bez dodatkowych komentarzy, nagłówków ani markdown poza gwiazdkami punktów."""
+Odpowiedz WYŁĄCZNIE w formacie wypunktowanym, każdy punkt w osobnej linii zaczynającej się
+od "* ", bez dodatkowych komentarzy, nagłówków ani markdown poza gwiazdkami punktów."""
+
+
+def _parse_bullets(text):
+    lines = []
+    for raw_line in text.strip().splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        line = re.sub(r"^[-•*]\s*", "", line)
+        lines.append(f"* {line}")
+    return lines
 
 
 def suggest_inspection_summary(nc_points, ok_count, total_count):
     """Generuje propozycję podsumowania inspekcji (metoda hamburgera) na bazie
     ZANONIMIZOWANYCH danych - nc_points to lista (punkt_checklisty, opis), bez
     nazwisk, działów ani lokalizacji. Zwraca dict {available, summary_good,
-    summary_to_fix, error}. Nigdy nie podnosi wyjątku."""
+    summary_to_fix, error}. Nigdy nie podnosi wyjątku.
+
+    Pozytywy i niezgodności są dwoma NIEZALEŻNYMI zapytaniami do modelu (a nie
+    jedną odpowiedzią dzieloną na sekcje po nagłówku) - eliminuje to ryzyko, że
+    model niedokładnie odtworzy nagłówek sekcji i niezgodności "wylądują" w
+    części z pozytywami (albo odwrotnie). Liczba OK/wszystkich punktów jest
+    zawsze dopisywana wprost przez kod, nie generowana przez model - model nie
+    może jej pomylić."""
     if not _is_configured():
         return {"available": False, "summary_good": None, "summary_to_fix": None,
                 "error": "Azure OpenAI nie jest skonfigurowane."}
@@ -194,42 +210,33 @@ def suggest_inspection_summary(nc_points, ok_count, total_count):
             timeout=REQUEST_TIMEOUT_SECONDS,
             max_retries=1,
         )
-        items_text = "\n".join(f"- {label or 'Brak punktu odniesienia'}: {desc}" for label, desc in nc_points)
 
-        response = client.chat.completions.create(
+        good_lines = [f"* {ok_count} z {total_count} punktów checklisty bez niezgodności."]
+        good_response = client.chat.completions.create(
             model=settings.AZURE_OPENAI_DEPLOYMENT,
             messages=[{
                 "role": "user",
-                "content": SUMMARY_PROMPT_TEMPLATE.format(
-                    ok_count=ok_count, total_count=total_count, items=items_text,
-                ),
+                "content": POSITIVE_PROMPT_TEMPLATE.format(ok_count=ok_count, total_count=total_count),
             }],
-            max_tokens=400,
+            max_tokens=200,
             temperature=0.4,
         )
-        text = response.choices[0].message.content.strip()
-        good_lines, fix_lines = [], []
-        section = None
-        for raw_line in text.splitlines():
-            line = raw_line.strip()
-            if not line:
-                continue
-            if line.upper().startswith("CO_BYLO_OK"):
-                section = "good"
-                continue
-            if line.upper().startswith("DO_POPRAWY"):
-                section = "fix"
-                continue
-            line = re.sub(r"^[-•*]\s*", "", line)
-            if section == "good":
-                good_lines.append(f"* {line}")
-            elif section == "fix":
-                fix_lines.append(f"* {line}")
+        good_lines += _parse_bullets(good_response.choices[0].message.content)
+
+        items_text = "\n".join(f"- {label or 'Brak punktu odniesienia'}: {desc}" for label, desc in nc_points)
+        fix_response = client.chat.completions.create(
+            model=settings.AZURE_OPENAI_DEPLOYMENT,
+            messages=[{
+                "role": "user",
+                "content": IMPROVEMENT_PROMPT_TEMPLATE.format(items=items_text),
+            }],
+            max_tokens=300,
+            temperature=0.4,
+        )
+        fix_lines = _parse_bullets(fix_response.choices[0].message.content)
+
         summary_good = "\n".join(good_lines) or None
         summary_to_fix = "\n".join(fix_lines) or None
-        if not summary_good and not summary_to_fix:
-            # model nie trzymał się formatu - zwróć całość jako "do poprawy", niech audytor poprawi
-            summary_to_fix = text
         return {"available": True, "summary_good": summary_good, "summary_to_fix": summary_to_fix, "error": None}
     except Exception as exc:  # noqa: BLE001 - podpowiedź AI nie może wywalić formularza
         return {"available": True, "summary_good": None, "summary_to_fix": None, "error": str(exc)}

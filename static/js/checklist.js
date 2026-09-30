@@ -98,6 +98,20 @@ document.addEventListener("DOMContentLoaded", function () {
     micBtn.textContent = "🎤 Dyktuj opis";
     descField.insertAdjacentElement("afterend", micBtn);
 
+    var micStatus = document.createElement("span");
+    micStatus.className = "mic-status muted";
+    micStatus.style.marginLeft = ".5rem";
+    micBtn.insertAdjacentElement("afterend", micStatus);
+
+    var MIC_ERROR_MESSAGES = {
+      "not-allowed": "Brak zgody na mikrofon - sprawdź uprawnienia aplikacji/przeglądarki dla mikrofonu w ustawieniach tabletu.",
+      "service-not-allowed": "Brak zgody na mikrofon - sprawdź uprawnienia aplikacji/przeglądarki dla mikrofonu w ustawieniach tabletu.",
+      "no-speech": "Nie wykryto mowy - spróbuj ponownie bliżej mikrofonu.",
+      "audio-capture": "Nie znaleziono mikrofonu na tym urządzeniu.",
+      "network": "Brak połączenia z internetem - dyktowanie wymaga sieci.",
+      "aborted": "",
+    };
+
     var recognition = new SpeechRecognitionCtor();
     recognition.lang = "pl-PL";
     recognition.interimResults = false;
@@ -118,16 +132,24 @@ document.addEventListener("DOMContentLoaded", function () {
       transcript = transcript.trim();
       if (transcript) {
         descField.value = (descField.value ? descField.value.replace(/\s+$/, "") + " " : "") + transcript;
+        micStatus.textContent = "";
       }
     });
     recognition.addEventListener("end", stopUi);
-    recognition.addEventListener("error", stopUi);
+    recognition.addEventListener("error", function (e) {
+      stopUi();
+      var msg = MIC_ERROR_MESSAGES.hasOwnProperty(e.error)
+        ? MIC_ERROR_MESSAGES[e.error]
+        : "Dyktowanie nie powiodło się (" + e.error + ").";
+      micStatus.textContent = msg;
+    });
 
     micBtn.addEventListener("click", function () {
       if (listening) {
         recognition.stop();
         return;
       }
+      micStatus.textContent = "";
       try {
         recognition.start();
         listening = true;
@@ -135,6 +157,7 @@ document.addEventListener("DOMContentLoaded", function () {
         micBtn.classList.add("mic-active");
       } catch (err) {
         stopUi();
+        micStatus.textContent = "Nie udało się uruchomić mikrofonu na tym urządzeniu.";
       }
     });
   }

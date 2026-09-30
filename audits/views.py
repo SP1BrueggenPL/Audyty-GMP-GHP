@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Case, Count, ProtectedError, Sum, When
+from django.db.models import Case, Count, ProtectedError, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -38,6 +38,7 @@ from .models import (
     NonConformity,
     NonConformityPhoto,
     Shift,
+    nc_counts_against_shift,
 )
 
 User = get_user_model()
@@ -379,12 +380,18 @@ def inspection_new(request, template_id):
                                     NonConformityPhoto.objects.create(nonconformity=enc, image=photo)
 
             # Punkty sekcji: każda niezgodność na punkcie checklisty odlicza wagę
-            # tego punktu (domyślnie 1 pkt, konfigurowalne w edytorze checklisty).
+            # tego punktu (domyślnie 1 pkt, konfigurowalne w edytorze checklisty),
+            # chyba że osoba odpowiedzialna jest z innej zmiany niż audytowana -
+            # wtedy odpowiedzialność (i odjęcie punktów) przechodzi na tamtą zmianę.
             # Minimum 0 - jeśli suma wag NC >= max punktów sekcji, sekcja ma 0 pkt.
             for section in sections:
-                weight_sum = NonConformity.objects.filter(
+                section_ncs = NonConformity.objects.filter(
                     inspection=inspection, is_extra=False, checklist_item__subsection__section=section,
-                ).aggregate(total=Sum("checklist_item__penalty_weight"))["total"] or 0
+                ).select_related("checklist_item", "responsible_person")
+                weight_sum = sum(
+                    nc.checklist_item.penalty_weight for nc in section_ncs
+                    if nc_counts_against_shift(nc.responsible_person, inspection.shift)
+                )
                 points = max(0, section.max_points - weight_sum)
                 InspectionSectionResult.objects.create(inspection=inspection, section=section, points_awarded=points)
 
@@ -616,11 +623,16 @@ def inspection_edit(request, pk):
 
                 inspection.nonconformities.filter(is_extra=True).exclude(pk__in=kept_extra_ids).delete()
 
-                # Punkty sekcji: każda niezgodność na punkcie checklisty odlicza wagę tego punktu.
+                # Punkty sekcji: każda niezgodność na punkcie checklisty odlicza wagę tego
+                # punktu, chyba że osoba odpowiedzialna jest z innej zmiany niż audytowana.
                 for section in sections:
-                    weight_sum = NonConformity.objects.filter(
+                    section_ncs = NonConformity.objects.filter(
                         inspection=inspection, is_extra=False, checklist_item__subsection__section=section,
-                    ).aggregate(total=Sum("checklist_item__penalty_weight"))["total"] or 0
+                    ).select_related("checklist_item", "responsible_person")
+                    weight_sum = sum(
+                        nc.checklist_item.penalty_weight for nc in section_ncs
+                        if nc_counts_against_shift(nc.responsible_person, inspection.shift)
+                    )
                     points = max(0, section.max_points - weight_sum)
                     InspectionSectionResult.objects.update_or_create(
                         inspection=inspection, section=section, defaults={"points_awarded": points},
