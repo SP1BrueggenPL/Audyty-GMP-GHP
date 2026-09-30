@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from accounts.models import Department, eligible_area_users
+from django import forms
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
@@ -20,7 +21,6 @@ from .forms import (
     WED_LOCATION_CHOICES,
     AuditorReviewForm,
     InspectionAdminEditForm,
-    InspectionHeaderForm,
     InspectionSummaryForm,
     ResponsibleActionForm,
     StandaloneNonConformityForm,
@@ -53,7 +53,9 @@ def _scoped_nonconformities(user):
 
 
 def _scoped_inspections(user):
-    qs = Inspection.objects.select_related("template", "inspector")
+    # Wersje robocze (DRAFT) nie pojawiają się tu ani w rejestrze/dashboardzie -
+    # widoczne są tylko dla ich autora, na ekranie "Moje niedokończone inspekcje".
+    qs = Inspection.objects.exclude(status=InspectionStatus.DRAFT).select_related("template", "inspector")
     if not user.is_admin_role:
         qs = qs.filter(is_hidden=False)
     scope = user.department_scope
@@ -135,6 +137,10 @@ def dashboard(request):
             responsible_person=request.user,
         ).exclude(status=NCStatus.WDROZONE)[:10],
         "templates": ChecklistTemplate.objects.filter(is_active=True),
+        "my_drafts_count": (
+            Inspection.objects.filter(inspector=request.user, status=InspectionStatus.DRAFT).count()
+            if request.user.can_run_inspections else 0
+        ),
     }
     return render(request, "audits/dashboard.html", context)
 
@@ -146,6 +152,17 @@ def inspection_type_select(request):
         return redirect("dashboard")
     templates = ChecklistTemplate.objects.filter(is_active=True)
     return render(request, "audits/inspection_type_select.html", {"templates": templates})
+
+
+@login_required
+def inspection_drafts(request):
+    if not request.user.can_run_inspections:
+        messages.error(request, "Twoja rola nie pozwala na przeprowadzanie inspekcji.")
+        return redirect("dashboard")
+    drafts = Inspection.objects.filter(
+        inspector=request.user, status=InspectionStatus.DRAFT,
+    ).select_related("template").order_by("-updated_at")
+    return render(request, "audits/inspection_drafts.html", {"drafts": drafts})
 
 
 @login_required
@@ -225,63 +242,6 @@ def suggest_inspection_summary_view(request):
     return JsonResponse(result)
 
 
-def _extract_draft_nc_points(request, sections, all_items):
-    """Jak _generate_inspection_summary, ale na podstawie POST z formularza
-    NOWEJ, jeszcze niezapisanej inspekcji (te same pola co przy zapisie:
-    item_X_result/_description/_extra-N-*, extra-N-*)."""
-    nc_points = []
-    nc_item_ids = set()
-    for section in sections:
-        for subsection in section.subsections.all():
-            for item in subsection.items.all():
-                result = request.POST.get(f"item_{item.id}_result", ItemResult.OK)
-                if result != ItemResult.NC:
-                    continue
-                description = request.POST.get(f"item_{item.id}_description", "").strip()
-                if description:
-                    nc_points.append((item.number, description))
-                    nc_item_ids.add(item.id)
-
-                item_extra_total = int(request.POST.get(f"item_{item.id}_extra-TOTAL_FORMS", 0) or 0)
-                for ei in range(item_extra_total):
-                    edescription = request.POST.get(f"item_{item.id}_extra-{ei}-description", "").strip()
-                    if edescription:
-                        nc_points.append((item.number, edescription))
-                        nc_item_ids.add(item.id)
-
-    extra_total = int(request.POST.get("extra-TOTAL_FORMS", 0) or 0)
-    for i in range(extra_total):
-        prefix = f"extra-{i}-"
-        description = request.POST.get(prefix + "description", "").strip()
-        if not description:
-            continue
-        item_id = request.POST.get(prefix + "item") or None
-        label = ""
-        if item_id:
-            chosen_item = next((it for it in all_items if str(it.id) == item_id), None)
-            if chosen_item:
-                label = chosen_item.number
-                nc_item_ids.add(chosen_item.id)
-        nc_points.append((label, description))
-
-    total_count = len(all_items)
-    ok_count = max(0, total_count - len(nc_item_ids))
-    return nc_points, ok_count, total_count
-
-
-@login_required
-def suggest_inspection_summary_draft(request, template_id):
-    """AJAX: propozycja podsumowania dla NOWEJ inspekcji, jeszcze przed zapisem -
-    dane brane bezpośrednio z formularza (patrz _extract_draft_nc_points),
-    bez zapisu do bazy."""
-    template = get_object_or_404(ChecklistTemplate, pk=template_id, is_active=True)
-    sections = list(template.sections.prefetch_related("subsections__items").all())
-    all_items = [it for s in sections for sub in s.subsections.all() for it in sub.items.all()]
-    nc_points, ok_count, total_count = _extract_draft_nc_points(request, sections, all_items)
-    result = suggest_inspection_summary(nc_points, ok_count, total_count)
-    return JsonResponse(result)
-
-
 @require_POST
 @login_required
 def inspection_generate_summary(request, pk):
@@ -308,157 +268,28 @@ def inspection_generate_summary(request, pk):
 
 @login_required
 def inspection_new(request, template_id):
+    """Rozpoczyna nową inspekcję: od razu tworzy wersję roboczą (status DRAFT)
+    w bazie i przekierowuje do jej wypełniania (inspection_edit) - dzięki temu
+    praca jest zapisywana na bieżąco (autozapis) od pierwszej sekundy, a nie
+    dopiero po ukończeniu całego formularza. Jeśli audytor ma już świeżo
+    rozpoczętą (w ciągu ostatnich 12h) wersję roboczą tego samego szablonu,
+    wznawia ją zamiast tworzyć kolejną pustą."""
     if not request.user.can_run_inspections:
         messages.error(request, "Twoja rola nie pozwala na przeprowadzanie inspekcji.")
         return redirect("dashboard")
     template = get_object_or_404(ChecklistTemplate, pk=template_id, is_active=True)
-    sections = list(
-        template.sections.prefetch_related("subsections__items").all()
-    )
 
-    if request.method == "POST":
-        header_form = InspectionHeaderForm(request.POST, area_code=template.area_code)
-        summary_form = InspectionSummaryForm(request.POST)
-        if header_form.is_valid() and summary_form.is_valid():
-            hc = header_form.cleaned_data
-            inspection = Inspection.objects.create(
-                template=template,
-                inspected_at=hc["inspected_at"],
-                area_detail=hc["area_detail"],
-                shift=hc["shift"],
-                inspector=request.user,
-                lines_working=hc["lines_working"],
-                lines_not_working_cleaning=hc["lines_not_working_cleaning"],
-                lines_not_working_stopped=hc["lines_not_working_stopped"],
-                rooms_checked=hc["rooms_checked"],
-                summary_good=summary_form.cleaned_data["summary_good"],
-                summary_to_fix=summary_form.cleaned_data["summary_to_fix"],
-            )
-
-            rep_ids = [v for v in request.POST.getlist("area_rep_ids") if v]
-            reps = list(User.objects.filter(pk__in=rep_ids))
-            if reps:
-                inspection.area_representatives.set(reps)
-            area_rep_text = ", ".join(str(u) for u in reps)
-
-            department = derive_department(template.area_code, hc["area_detail"])
-
-            for section in sections:
-                for subsection in section.subsections.all():
-                    for item in subsection.items.all():
-                        result = request.POST.get(f"item_{item.id}_result", ItemResult.OK)
-                        note = request.POST.get(f"item_{item.id}_note", "").strip()
-                        InspectionItemResult.objects.create(
-                            inspection=inspection, item=item, result=result, note=note,
-                        )
-                        if result == ItemResult.NC:
-                            description = request.POST.get(f"item_{item.id}_description", "").strip() or note
-                            if description:
-                                responsible_id = request.POST.get(f"item_{item.id}_responsible") or None
-                                nc = _create_item_nc(
-                                    inspection, item, section, department, area_rep_text,
-                                    request.POST.get(f"item_{item.id}_location", "").strip(),
-                                    description, responsible_id,
-                                )
-                                for photo in request.FILES.getlist(f"item_{item.id}_photos"):
-                                    NonConformityPhoto.objects.create(nonconformity=nc, image=photo)
-
-                            # Dodatkowe niezgodności dodane przyciskiem "+" bezpośrednio przy tym punkcie.
-                            item_extra_total = int(request.POST.get(f"item_{item.id}_extra-TOTAL_FORMS", 0) or 0)
-                            for ei in range(item_extra_total):
-                                eprefix = f"item_{item.id}_extra-{ei}-"
-                                edescription = request.POST.get(eprefix + "description", "").strip()
-                                if not edescription:
-                                    continue
-                                eresponsible_id = request.POST.get(eprefix + "responsible") or None
-                                enc = _create_item_nc(
-                                    inspection, item, section, department, area_rep_text,
-                                    request.POST.get(eprefix + "location", "").strip(),
-                                    edescription, eresponsible_id,
-                                )
-                                for photo in request.FILES.getlist(eprefix + "photos"):
-                                    NonConformityPhoto.objects.create(nonconformity=enc, image=photo)
-
-            # Punkty sekcji: każda niezgodność na punkcie checklisty odlicza wagę
-            # tego punktu (domyślnie 1 pkt, konfigurowalne w edytorze checklisty),
-            # chyba że osoba odpowiedzialna jest z innej zmiany niż audytowana -
-            # wtedy odpowiedzialność (i odjęcie punktów) przechodzi na tamtą zmianę.
-            # Minimum 0 - jeśli suma wag NC >= max punktów sekcji, sekcja ma 0 pkt.
-            for section in sections:
-                section_ncs = NonConformity.objects.filter(
-                    inspection=inspection, is_extra=False, checklist_item__subsection__section=section,
-                ).select_related("checklist_item", "responsible_person")
-                weight_sum = sum(
-                    nc.checklist_item.penalty_weight for nc in section_ncs
-                    if nc_counts_against_shift(nc.responsible_person, inspection.shift)
-                )
-                points = max(0, section.max_points - weight_sum)
-                InspectionSectionResult.objects.create(inspection=inspection, section=section, points_awarded=points)
-
-            extra_total = int(request.POST.get("extra-TOTAL_FORMS", 0) or 0)
-            for i in range(extra_total):
-                prefix = f"extra-{i}-"
-                description = request.POST.get(prefix + "description", "").strip()
-                if not description:
-                    continue
-                item_id = request.POST.get(prefix + "item") or None
-                responsible_id = request.POST.get(prefix + "responsible") or None
-                point_label = ""
-                point_desc = ""
-                category = ""
-                if item_id:
-                    try:
-                        chosen_item = next(
-                            it for s in sections for sub in s.subsections.all() for it in sub.items.all()
-                            if str(it.id) == item_id
-                        )
-                        point_label = chosen_item.number
-                        point_desc = chosen_item.description[:400]
-                        category = chosen_item.subsection.section.name
-                    except StopIteration:
-                        item_id = None
-                nc = NonConformity.objects.create(
-                    inspection=inspection,
-                    checklist_item_id=item_id,
-                    is_extra=True,
-                    inspection_date=inspection.inspected_at.date(),
-                    department=department,
-                    inspector=inspection.inspector,
-                    shift=inspection.shift,
-                    area_representative=area_rep_text,
-                    gmp_category=category,
-                    checklist_point_label=point_label or "Brak punktu odniesienia",
-                    point_description=point_desc,
-                    location_detail=request.POST.get(prefix + "location", "").strip(),
-                    description=description,
-                    responsible_person_id=responsible_id,
-                )
-                for photo in request.FILES.getlist(prefix + "photos"):
-                    NonConformityPhoto.objects.create(nonconformity=nc, image=photo)
-
-            inspection.status = "SUBMITTED"
-            inspection.save()
-            messages.success(request, f"Inspekcja zapisana. Utworzono {inspection.nonconformity_count} niezgodności.")
-            return redirect("inspection_detail", pk=inspection.pk)
-        else:
-            messages.error(request, "Uzupełnij wymagane pola w nagłówku inspekcji.")
-    else:
-        header_form = InspectionHeaderForm(area_code=template.area_code, initial={
-            "inspected_at": timezone.localtime().strftime("%Y-%m-%dT%H:%M"),
-        })
-        summary_form = InspectionSummaryForm()
-
-    all_items = [it for s in sections for sub in s.subsections.all() for it in sub.items.all()]
-
-    return render(request, "audits/inspection_form.html", {
-        "template_obj": template,
-        "sections": sections,
-        "header_form": header_form,
-        "summary_form": summary_form,
-        "all_items": all_items,
-        "item_results": ItemResult.choices,
-        "wed_location_choices": WED_LOCATION_CHOICES,
-    })
+    recent_cutoff = timezone.now() - timedelta(hours=12)
+    draft = Inspection.objects.filter(
+        template=template, inspector=request.user, status=InspectionStatus.DRAFT,
+        updated_at__gte=recent_cutoff,
+    ).order_by("-updated_at").first()
+    if not draft:
+        draft = Inspection.objects.create(
+            template=template, inspector=request.user, status=InspectionStatus.DRAFT,
+            inspected_at=timezone.now(),
+        )
+    return redirect("inspection_edit", pk=draft.pk)
 
 
 @login_required
@@ -516,12 +347,19 @@ def inspection_edit(request, pk):
     template = inspection.template
     sections = list(template.sections.prefetch_related("subsections__items").all())
     all_items = [it for s in sections for sub in s.subsections.all() for it in sub.items.all()]
+    was_draft = inspection.status == InspectionStatus.DRAFT
 
     if request.method == "POST":
+        autosave = request.POST.get("autosave") == "1"
         form = InspectionAdminEditForm(request.POST, instance=inspection)
         if form.is_valid():
+            item_nc_ids = {}
+            extra_nc_ids = {}
             with transaction.atomic():
-                inspection = form.save()
+                inspection = form.save(commit=False)
+                if not autosave and was_draft and inspection.status == InspectionStatus.DRAFT:
+                    inspection.status = InspectionStatus.SUBMITTED
+                inspection.save()
                 department = derive_department(template.area_code, inspection.area_detail)
 
                 rep_ids = [v for v in request.POST.getlist("area_rep_ids") if v]
@@ -563,6 +401,7 @@ def inspection_edit(request, pk):
                                         location, description, responsible_id,
                                     )
                                 kept_ids.add(nc.pk)
+                                item_nc_ids.setdefault(str(item.id), {})[str(i)] = nc.pk
                                 for photo in request.FILES.getlist(prefix + "photos"):
                                     NonConformityPhoto.objects.create(nonconformity=nc, image=photo)
 
@@ -618,6 +457,7 @@ def inspection_edit(request, pk):
                             responsible_person_id=responsible_id,
                         )
                     kept_extra_ids.add(nc.pk)
+                    extra_nc_ids[str(i)] = nc.pk
                     for photo in request.FILES.getlist(prefix + "photos"):
                         NonConformityPhoto.objects.create(nonconformity=nc, image=photo)
 
@@ -638,12 +478,26 @@ def inspection_edit(request, pk):
                         inspection=inspection, section=section, defaults={"points_awarded": points},
                     )
 
-            messages.success(request, "Inspekcja zaktualizowana.")
+            if autosave:
+                return JsonResponse({
+                    "saved": True, "saved_at": timezone.localtime().strftime("%H:%M:%S"),
+                    "item_nc_ids": item_nc_ids, "extra_nc_ids": extra_nc_ids,
+                    "nonconformity_count": inspection.nonconformity_count,
+                })
+            messages.success(request, "Inspekcja zakończona i zapisana." if was_draft else "Inspekcja zaktualizowana.")
             return redirect("inspection_detail", pk=inspection.pk)
+        elif autosave:
+            return JsonResponse({"saved": False, "errors": form.errors})
     else:
         form = InspectionAdminEditForm(instance=inspection, initial={
             "inspected_at": timezone.localtime(inspection.inspected_at).strftime("%Y-%m-%dT%H:%M"),
         })
+
+    if was_draft:
+        # Nowa/robocza inspekcja: status i inspektor ustawiają się automatycznie
+        # (patrz wyżej) - nie pokazujemy ich jako edytowalnych pól zwykłemu audytorowi.
+        form.fields["status"].widget = forms.HiddenInput()
+        form.fields["inspector"].widget = forms.HiddenInput()
 
     item_results = {r.item_id: r for r in InspectionItemResult.objects.filter(inspection=inspection)}
     item_ncs = {}
@@ -665,16 +519,20 @@ def inspection_edit(request, pk):
         "extra_ncs": extra_ncs,
         "area_rep_ids_csv": area_rep_ids_csv,
         "wed_location_choices": WED_LOCATION_CHOICES,
+        "is_draft": was_draft,
     })
 
 
 @require_POST
 @login_required
 def inspection_delete(request, pk):
-    if not _require_admin(request):
+    inspection = get_object_or_404(Inspection, pk=pk)
+    is_own_draft = (
+        inspection.status == InspectionStatus.DRAFT and inspection.inspector_id == request.user.id
+    )
+    if not is_own_draft and not _require_admin(request):
         return redirect("inspection_detail", pk=pk)
 
-    inspection = get_object_or_404(Inspection, pk=pk)
     try:
         inspection.delete()
         messages.success(request, "Inspekcja i powiązane z nią niezgodności zostały usunięte.")

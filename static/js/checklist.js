@@ -28,6 +28,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (input.dataset.photoEnhanced === "1") return;
     input.dataset.photoEnhanced = "1";
     var files = [];
+    var uploaded = new Set(); // pliki już zapisane przez autozapis - nie wysyłamy ich ponownie
 
     var wrap = document.createElement("div");
     wrap.className = "photo-upload-wrap";
@@ -79,6 +80,18 @@ document.addEventListener("DOMContentLoaded", function () {
       rebuildInputFiles();
       render();
     });
+
+    // Zaczepy dla silnika autozapisu (patrz sekcja 4 niżej) - pozwalają wysłać
+    // do zapisu tylko NOWE, jeszcze niezapisane zdjęcia z tego pola, a potem
+    // odtworzyć pełny akumulator plików bez utraty tych, które user dopiero
+    // co dodał, ale jeszcze nie zostały potwierdzone jako zapisane.
+    input._draftPending = function () {
+      return files.filter(function (f) { return !uploaded.has(f); });
+    };
+    input._draftMarkUploaded = function (list) {
+      list.forEach(function (f) { uploaded.add(f); });
+    };
+    input._draftRestoreFull = rebuildInputFiles;
 
     render();
   }
@@ -472,4 +485,96 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     });
   });
+
+  // ---- 4) Autozapis wersji roboczej ---------------------------------------
+  // Tylko dla formularza wersji roboczej (data-autosave="1", patrz
+  // inspection_edit.html) - okresowo wysyła CAŁY formularz z flagą autosave=1
+  // do TEGO SAMEGO endpointu co zwykły zapis. Widok po stronie serwera
+  // aktualizuje istniejące rekordy (po ukrytych polach "...-id" zamiast
+  // tworzyć nowe za każdym razem) i zwraca ich id z powrotem - JS wpisuje je
+  // do pól "...-id", żeby KOLEJNY autozapis zaktualizował te same rekordy,
+  // a nie tworzył duplikatów. Zdjęcia wysyłane są tylko raz (patrz
+  // _draftPending/_draftMarkUploaded przy enhancePhotoInput powyżej).
+  if (form.dataset.autosave === "1") {
+    var autosaveStatusEl = document.getElementById("autosave-status");
+    var autosaveTimer = null;
+    var autosaveInFlight = false;
+    var autosaveQueued = false;
+
+    function setAutosaveStatus(text) {
+      if (autosaveStatusEl) autosaveStatusEl.textContent = text;
+    }
+
+    function runAutosave() {
+      if (autosaveInFlight) {
+        autosaveQueued = true;
+        return;
+      }
+      var photoInputs = Array.prototype.slice.call(form.querySelectorAll(".photo-input"));
+      var pendingBySlot = {};
+      photoInputs.forEach(function (inp) {
+        if (!inp._draftPending) return;
+        var pending = inp._draftPending();
+        if (!pending.length) return;
+        var dt = new DataTransfer();
+        pending.forEach(function (f) { dt.items.add(f); });
+        inp.files = dt.files;
+        pendingBySlot[inp.name] = pending;
+      });
+
+      var fd = new FormData(form);
+      fd.set("autosave", "1");
+
+      autosaveInFlight = true;
+      setAutosaveStatus("Zapisywanie…");
+
+      fetch(window.location.href, {
+        method: "POST", body: fd, headers: { "X-CSRFToken": csrfTokenInput.value },
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          photoInputs.forEach(function (inp) { if (inp._draftRestoreFull) inp._draftRestoreFull(); });
+          if (data.saved) {
+            Object.keys(pendingBySlot).forEach(function (name) {
+              var inp = form.querySelector('.photo-input[name="' + name + '"]');
+              if (inp && inp._draftMarkUploaded) inp._draftMarkUploaded(pendingBySlot[name]);
+            });
+            Object.keys(data.item_nc_ids || {}).forEach(function (itemId) {
+              var forItem = data.item_nc_ids[itemId];
+              Object.keys(forItem).forEach(function (i) {
+                var idField = form.querySelector('input[name="item_' + itemId + '_nc-' + i + '-id"]');
+                if (idField) idField.value = forItem[i];
+              });
+            });
+            Object.keys(data.extra_nc_ids || {}).forEach(function (i) {
+              var idField = form.querySelector('input[name="extra-' + i + '-id"]');
+              if (idField) idField.value = data.extra_nc_ids[i];
+            });
+            setAutosaveStatus("Zapisano automatycznie o " + data.saved_at + ".");
+          } else {
+            setAutosaveStatus("Uzupełnij datę i obszar inspekcji, aby włączyć autozapis.");
+          }
+        })
+        .catch(function () {
+          photoInputs.forEach(function (inp) { if (inp._draftRestoreFull) inp._draftRestoreFull(); });
+          setAutosaveStatus("Brak połączenia - spróbuję zapisać ponownie za chwilę.");
+        })
+        .then(function () {
+          autosaveInFlight = false;
+          if (autosaveQueued) {
+            autosaveQueued = false;
+            runAutosave();
+          }
+        });
+    }
+
+    function scheduleAutosave(delayMs) {
+      if (autosaveTimer) clearTimeout(autosaveTimer);
+      autosaveTimer = setTimeout(runAutosave, delayMs);
+    }
+
+    form.addEventListener("input", function () { scheduleAutosave(4000); });
+    form.addEventListener("change", function () { scheduleAutosave(2000); });
+    setInterval(function () { scheduleAutosave(0); }, 45000);
+  }
 });

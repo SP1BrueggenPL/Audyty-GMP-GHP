@@ -9,6 +9,13 @@
   {% if user.can_run_inspections %}<a href="{% url 'inspection_type_select' %}" class="btn btn-primary">+ Nowa inspekcja</a>{% endif %}
 </div>
 
+{% if my_drafts_count %}
+<div class="card" style="border-color:var(--claret);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem;">
+  <p style="margin:0;">Masz niedokończone inspekcje ({{ my_drafts_count }}) - zapisane automatycznie, możesz je dokończyć w każdej chwili.</p>
+  <a href="{% url 'inspection_drafts' %}" class="btn btn-outline btn-sm">Wznów</a>
+</div>
+{% endif %}
+
 <div class="card-grid">
   <div class="stat-card">
     <div class="stat-number">{{ inspections_this_month }}</div>

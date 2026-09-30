@@ -4,13 +4,25 @@
 {% block content %}
 <div class="page-header">
   <div>
-    <h1>Edycja inspekcji</h1>
+    <h1>{% if is_draft %}Nowa inspekcja - wersja robocza{% else %}Edycja inspekcji{% endif %}</h1>
     <p class="muted">{{ inspection.template.get_area_code_display }} · {{ inspection.inspected_at|date:"d.m.Y H:i" }}</p>
   </div>
-  <a href="{% url 'inspection_detail' inspection.pk %}" class="btn btn-outline btn-sm">← Wróć do inspekcji</a>
+  {% if not is_draft %}<a href="{% url 'inspection_detail' inspection.pk %}" class="btn btn-outline btn-sm">← Wróć do inspekcji</a>{% endif %}
 </div>
 
-<form method="post" enctype="multipart/form-data" id="inspection-form" data-users-url="{% url 'users_by_shift' %}" data-suggest-url="{% url 'suggest_nonconformity' %}" data-area-code="{{ inspection.template.area_code }}" data-preselected-reps="{{ area_rep_ids_csv }}">
+{% if is_draft %}
+<div class="card" style="background:var(--steel-tint, #eef3f7);">
+  <p class="help-text" style="margin:0;">
+    To wersja robocza - zapisuje się automatycznie w trakcie wypełniania, więc przerwanie pracy
+    (zamknięcie karty, utrata połączenia) nie usuwa wprowadzonych danych. Wróć do niej w każdej chwili
+    z listy „<a href="{% url 'inspection_drafts' %}">Moje niedokończone inspekcje</a>”. Kliknij
+    „Zakończ inspekcję” na dole, gdy skończysz.
+  </p>
+  <p class="muted" id="autosave-status" style="margin:.5rem 0 0;font-size:.85rem;"></p>
+</div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" id="inspection-form" data-users-url="{% url 'users_by_shift' %}" data-suggest-url="{% url 'suggest_nonconformity' %}" data-area-code="{{ inspection.template.area_code }}" data-preselected-reps="{{ area_rep_ids_csv }}" {% if is_draft %}data-autosave="1"{% endif %}>
   {% csrf_token %}
 
   <div class="card">
@@ -25,10 +37,14 @@
       <div class="field">{{ form.shift.label_tag }}{{ form.shift }}</div>
       {% endif %}
     </div>
+    {% if is_draft %}
+    {{ form.inspector }}{{ form.status }}
+    {% else %}
     <div class="field-row">
       <div class="field">{{ form.inspector.label_tag }}{{ form.inspector }}</div>
       <div class="field">{{ form.status.label_tag }}{{ form.status }}</div>
     </div>
+    {% endif %}
     <div class="field">
       <label>Przedstawiciele obszaru</label>
       <div id="area-rep-list" class="rep-list">
@@ -304,18 +320,22 @@
     <div class="field">{{ form.report_recipients.label_tag }}{{ form.report_recipients }}</div>
   </div>
 
-  <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
+  <button type="submit" class="btn btn-primary">{% if is_draft %}✓ Zakończ inspekcję{% else %}Zapisz zmiany{% endif %}</button>
 </form>
 
 <div class="card" style="border-color:var(--coral);margin-top:1.5rem;">
   <h2 style="font-size:1rem;color:var(--coral);">Strefa niebezpieczna</h2>
   <p class="help-text">
+    {% if is_draft %}
+    Usunięcie tej wersji roboczej skasuje wszystko, co dotąd wpisano. Tej operacji nie można cofnąć.
+    {% else %}
     Usunięcie inspekcji skasuje też wszystkie {{ inspection.nonconformity_count }} powiązanych niezgodności
     (wraz z zapisanymi działaniami i zdjęciami). Tej operacji nie można cofnąć.
+    {% endif %}
   </p>
-  <form method="post" action="{% url 'inspection_delete' inspection.pk %}" onsubmit="return confirm('Na pewno usunąć tę inspekcję i {{ inspection.nonconformity_count }} powiązanych niezgodności? Tej operacji nie można cofnąć.');">
+  <form method="post" action="{% url 'inspection_delete' inspection.pk %}" onsubmit="return confirm('{% if is_draft %}Na pewno usunąć tę wersję roboczą?{% else %}Na pewno usunąć tę inspekcję i {{ inspection.nonconformity_count }} powiązanych niezgodności?{% endif %} Tej operacji nie można cofnąć.');">
     {% csrf_token %}
-    <button type="submit" class="btn btn-outline btn-sm" style="border-color:var(--coral);color:var(--coral);">🗑 Usuń inspekcję</button>
+    <button type="submit" class="btn btn-outline btn-sm" style="border-color:var(--coral);color:var(--coral);">🗑 {% if is_draft %}Usuń wersję roboczą{% else %}Usuń inspekcję{% endif %}</button>
   </form>
 </div>
 {% endblock %}

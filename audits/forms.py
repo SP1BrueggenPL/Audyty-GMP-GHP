@@ -2,7 +2,7 @@ from accounts.models import eligible_area_users
 from django import forms
 from django.contrib.auth import get_user_model
 
-from .models import AreaCode, Department, Inspection, NonConformity, Shift
+from .models import AreaCode, Department, Inspection, NonConformity
 
 User = get_user_model()
 
@@ -41,32 +41,6 @@ def derive_department(area_code, area_detail):
     if area_code == AreaCode.WED:
         return Department.WED
     return Department.WED
-
-
-class InspectionHeaderForm(forms.Form):
-    inspected_at = forms.DateTimeField(
-        label="Data/godzina inspekcji",
-        widget=forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
-        input_formats=["%Y-%m-%dT%H:%M"],
-    )
-    area_detail = forms.ChoiceField(label="Obszar", choices=[])
-    shift = forms.ChoiceField(label="Zmiana", choices=Shift.choices, initial=Shift.ND)
-    lines_working = forms.CharField(label="Linie pracujące", required=False, widget=forms.Textarea(attrs={"rows": 2}))
-    lines_not_working_cleaning = forms.CharField(
-        label="Linie niepracujące (mycie)", required=False, widget=forms.Textarea(attrs={"rows": 2}),
-    )
-    lines_not_working_stopped = forms.CharField(
-        label="Linie niepracujące (postój)", required=False, widget=forms.Textarea(attrs={"rows": 2}),
-    )
-    rooms_checked = forms.CharField(
-        label="Sprawdzone pomieszczenia/miejsca", required=False,
-        widget=forms.Textarea(attrs={"rows": 3, "class": "rooms-checked-textarea"}),
-        help_text="Jedna pozycja na linię",
-    )
-
-    def __init__(self, *args, area_code=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["area_detail"].choices = AREA_DETAIL_CHOICES.get(area_code, [])
 
 
 class InspectionSummaryForm(forms.Form):

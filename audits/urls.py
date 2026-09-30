@@ -7,6 +7,7 @@ urlpatterns = [
     path("inspekcje/", views.inspection_list, name="inspection_list"),
     path("inspekcje/nowa/", views.inspection_type_select, name="inspection_type_select"),
     path("inspekcje/nowa/<int:template_id>/", views.inspection_new, name="inspection_new"),
+    path("inspekcje/moje-robocze/", views.inspection_drafts, name="inspection_drafts"),
     path("inspekcje/<int:pk>/", views.inspection_detail, name="inspection_detail"),
     path("inspekcje/<int:pk>/edytuj/", views.inspection_edit, name="inspection_edit"),
     path("inspekcje/<int:pk>/usun/", views.inspection_delete, name="inspection_delete"),
@@ -23,10 +24,6 @@ urlpatterns = [
     path("api/osoby-ze-zmiany/", views.users_by_shift, name="users_by_shift"),
     path("api/podpowiedz-niezgodnosc/", views.suggest_nonconformity, name="suggest_nonconformity"),
     path("api/podpowiedz-podsumowanie/", views.suggest_inspection_summary_view, name="suggest_inspection_summary"),
-    path(
-        "api/podpowiedz-podsumowanie-nowa/<int:template_id>/",
-        views.suggest_inspection_summary_draft, name="suggest_inspection_summary_draft",
-    ),
     path("checklisty/<int:pk>/", checklist_admin.checklist_template_edit, name="checklist_template_edit"),
     path("checklisty/sekcja/<int:pk>/", checklist_admin.checklist_section_edit, name="checklist_section_edit"),
     path("checklisty/podsekcja/<int:pk>/", checklist_admin.checklist_subsection_edit, name="checklist_subsection_edit"),

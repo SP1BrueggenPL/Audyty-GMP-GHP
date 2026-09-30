@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Moje niedokończone inspekcje{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Moje niedokończone inspekcje</h1><p>Wersje robocze zapisane automatycznie w trakcie wypełniania - wznów, dokończ albo usuń.</p></div>
+  <a href="{% url 'inspection_type_select' %}" class="btn btn-outline btn-sm">+ Nowa inspekcja</a>
+</div>
+
+<div class="card" style="padding:0;overflow:auto;">
+<table class="nice">
+  <thead>
+    <tr><th>Rozpoczęto</th><th>Ostatni zapis</th><th>Typ</th><th>Obszar</th><th>Niezgodności</th><th>Akcje</th></tr>
+  </thead>
+  <tbody>
+  {% for d in drafts %}
+    <tr>
+      <td>{{ d.inspected_at|date:"d.m.Y H:i" }}</td>
+      <td>{{ d.updated_at|date:"d.m.Y H:i" }}</td>
+      <td>{{ d.template.get_area_code_display }}</td>
+      <td>{{ d.area_detail|default:"—" }}</td>
+      <td>{{ d.nonconformity_count }}</td>
+      <td style="display:flex;gap:.5rem;">
+        <a href="{% url 'inspection_edit' d.pk %}" class="btn btn-primary btn-sm">Wznów</a>
+        <form method="post" action="{% url 'inspection_delete' d.pk %}" onsubmit="return confirm('Na pewno usunąć tę wersję roboczą? Tej operacji nie można cofnąć.');">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline btn-sm" style="border-color:var(--coral);color:var(--coral);">🗑 Usuń</button>
+        </form>
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" class="muted">Brak niedokończonych inspekcji.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
