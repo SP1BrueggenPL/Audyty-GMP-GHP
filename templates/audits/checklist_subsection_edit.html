@@ -15,10 +15,11 @@
   <div class="card">
     <h2 style="font-size:1.05rem;">Punkty kontrolne</h2>
     <p class="help-text">Zmień treść/numer punktu, dodaj nowy przyciskiem poniżej albo zaznacz „Usuń”, żeby go skasować.</p>
+    <p class="help-text">„Waga” to liczba punktów, jaką odejmuje pojedyncza niezgodność na tym punkcie (domyślnie 1). Zmiana wagi dotyczy tylko nowych i od tej chwili edytowanych inspekcji - już zakończone inspekcje zachowują swój dotychczasowy wynik.</p>
     {{ formset.management_form }}
     {% if formset.non_form_errors %}<div class="errorlist">{{ formset.non_form_errors }}</div>{% endif %}
     <table class="nice">
-      <thead><tr><th>Kolejność</th><th>Numer</th><th>Opis wymagania</th><th>Usuń</th></tr></thead>
+      <thead><tr><th>Kolejność</th><th>Numer</th><th>Opis wymagania</th><th>Waga</th><th>Usuń</th></tr></thead>
       <tbody id="items-tbody">
       {% for form in formset %}
         <tr>
@@ -26,6 +27,7 @@
           <td>{{ form.order }}{{ form.order.errors }}</td>
           <td>{{ form.number }}{{ form.number.errors }}</td>
           <td>{{ form.description }}{{ form.description.errors }}</td>
+          <td>{{ form.penalty_weight }}{{ form.penalty_weight.errors }}</td>
           <td><label style="display:flex;justify-content:center;">{{ form.DELETE }}</label></td>
         </tr>
       {% endfor %}
@@ -42,6 +44,7 @@
     <td>{{ formset.empty_form.order }}</td>
     <td>{{ formset.empty_form.number }}</td>
     <td>{{ formset.empty_form.description }}</td>
+    <td>{{ formset.empty_form.penalty_weight }}</td>
     <td></td>
   </tr>
 </template>

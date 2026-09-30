@@ -43,9 +43,12 @@ SubsectionFormSet = inlineformset_factory(
 
 ItemFormSet = inlineformset_factory(
     ChecklistSubsection, ChecklistItem,
-    fields=["number", "description", "order"],
+    fields=["number", "description", "penalty_weight", "order"],
     extra=0, can_delete=True,
-    widgets={"description": forms.Textarea(attrs={"rows": 2})},
+    widgets={
+        "description": forms.Textarea(attrs={"rows": 2}),
+        "penalty_weight": forms.NumberInput(attrs={"min": 1, "style": "width:4rem;"}),
+    },
 )
 
 

@@ -80,6 +80,12 @@ class ChecklistItem(models.Model):
     order = models.PositiveSmallIntegerField(default=0)
     number = models.CharField(max_length=10, help_text="np. 1.1, 2.3")
     description = models.TextField()
+    penalty_weight = models.PositiveSmallIntegerField(
+        default=1, verbose_name="Waga (pkt za niezgodność)",
+        help_text="Ile punktów odejmuje pojedyncza niezgodność na tym punkcie. Zmiana wagi dotyczy "
+                   "tylko nowych i od tej chwili edytowanych inspekcji - już zakończone inspekcje "
+                   "zachowują wynik naliczony w chwili ich zapisu.",
+    )
 
     class Meta:
         ordering = ["subsection", "order"]
@@ -160,9 +166,18 @@ class Inspection(models.Model):
         return self.nonconformities.filter(is_extra=True).count()
 
     @property
+    def extra_nc_penalty(self):
+        """Suma wag punktowych dodatkowych niezgodności - waga punktu checklisty,
+        do którego są przypisane, albo 1 pkt dla niezgodności bez punktu odniesienia."""
+        return sum(
+            (nc.checklist_item.penalty_weight if nc.checklist_item_id else 1)
+            for nc in self.nonconformities.filter(is_extra=True).select_related("checklist_item")
+        )
+
+    @property
     def points_total(self):
         section_points = sum(r.points_awarded or 0 for r in self.section_results.all())
-        return max(0, section_points - self.extra_nc_count)
+        return max(0, section_points - self.extra_nc_penalty)
 
     @property
     def result_percent(self):
