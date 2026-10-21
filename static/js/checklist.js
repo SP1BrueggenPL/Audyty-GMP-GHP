@@ -167,6 +167,10 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
 
+    var gotAudio = false;
+    var lastError = "";
+    recognition.addEventListener("audiostart", function () { gotAudio = true; });
+
     recognition.addEventListener("end", function () {
       if (!wantListening) {
         setUi(false);
@@ -174,7 +178,12 @@ document.addEventListener("DOMContentLoaded", function () {
       }
       quickEnds = (Date.now() - lastStartAt < 800) ? quickEnds + 1 : 0;
       if (quickEnds >= 3) {
-        giveUp("Dyktowanie przerywa się od razu po uruchomieniu - sprawdź uprawnienia mikrofonu i połączenie z internetem.");
+        giveUp(
+          "Dyktowanie przerywa się od razu po uruchomieniu (" +
+          (gotAudio ? "mikrofon działa, ale usługa rozpoznawania mowy kończy sesję" : "przeglądarka nie uruchomiła mikrofonu") +
+          (lastError ? ", kod: " + lastError : "") + "). " +
+          "Ta przeglądarka najpewniej nie obsługuje dyktowania na tym urządzeniu - użyj ikony mikrofonu na klawiaturze ekranowej tabletu."
+        );
         return;
       }
       setTimeout(function () {
@@ -184,11 +193,25 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     recognition.addEventListener("error", function (e) {
+      lastError = e.error;
       if (FATAL_ERRORS.indexOf(e.error) !== -1) {
         giveUp(MIC_ERROR_MESSAGES[e.error]);
       }
       // "no-speech"/"aborted": zwykła cisza lub przerwanie sesji - po "end" wznawiamy.
     });
+
+    function beginListening() {
+      quickEnds = 0;
+      gotAudio = false;
+      lastError = "";
+      try {
+        wantListening = true;
+        startRecognition();
+        setUi(true);
+      } catch (err) {
+        giveUp("Nie udało się uruchomić mikrofonu na tym urządzeniu.");
+      }
+    }
 
     micBtn.addEventListener("click", function () {
       if (wantListening) {
@@ -198,13 +221,23 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
       micStatus.textContent = "";
-      quickEnds = 0;
-      try {
-        wantListening = true;
-        startRecognition();
-        setUi(true);
-      } catch (err) {
-        giveUp("Nie udało się uruchomić mikrofonu na tym urządzeniu.");
+      // Jawne żądanie dostępu do mikrofonu - pokazuje systemowe pytanie o zgodę
+      // i pozwala odróżnić odmowę uprawnień od problemu z samą usługą rozpoznawania.
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then(function (stream) {
+            stream.getTracks().forEach(function (t) { t.stop(); });
+            beginListening();
+          })
+          .catch(function (err) {
+            giveUp(
+              err && (err.name === "NotAllowedError" || err.name === "SecurityError")
+                ? MIC_ERROR_MESSAGES["not-allowed"]
+                : "Nie udało się uzyskać dostępu do mikrofonu (" + (err && err.name) + ")."
+            );
+          });
+      } else {
+        beginListening();
       }
     });
   }
