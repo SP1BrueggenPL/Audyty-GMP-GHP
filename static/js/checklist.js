@@ -132,7 +132,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var recognition = new SpeechRecognitionCtor();
     recognition.lang = "pl-PL";
     recognition.interimResults = false;
-    recognition.continuous = true;
+    recognition.continuous = false; // krótkie sesje + nasze wznawianie są stabilniejsze na tabletach
     var wantListening = false;
     var lastStartAt = 0;
     var quickEnds = 0;
@@ -189,7 +189,7 @@ document.addEventListener("DOMContentLoaded", function () {
       setTimeout(function () {
         if (!wantListening) return;
         try { startRecognition(); } catch (err) { giveUp("Nie udało się wznowić dyktowania."); }
-      }, 200);
+      }, 500);
     });
 
     recognition.addEventListener("error", function (e) {
