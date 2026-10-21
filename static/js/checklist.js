@@ -101,9 +101,28 @@ document.addEventListener("DOMContentLoaded", function () {
   // przycisku, reszta formularza działa normalnie.
   var SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
 
+  // iPhone/iPad (także w Edge/Chrome - na iOS wszystkie przeglądarki używają silnika
+  // Safari): dyktowanie z poziomu strony jest tam zawodne (sesja kończy się kodem
+  // "aborted"), a wbudowane dyktowanie z klawiatury działa w każdym polu - dlatego
+  // zamiast przycisku pokazujemy podpowiedź. iPadOS podaje się jako Macintosh,
+  // stąd dodatkowy test ekranu dotykowego.
+  var IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
   function enhanceMic(descField) {
-    if (descField.dataset.micEnhanced === "1" || !SpeechRecognitionCtor) return;
+    if (descField.dataset.micEnhanced === "1") return;
     descField.dataset.micEnhanced = "1";
+
+    if (IS_IOS) {
+      var hint = document.createElement("div");
+      hint.className = "mic-status muted";
+      hint.style.marginTop = ".25rem";
+      hint.textContent = "🎤 Dyktowanie: dotknij ikony mikrofonu na klawiaturze iPada (jeśli jej nie ma: " +
+        "Ustawienia → Ogólne → Klawiatura → Włącz dyktowanie).";
+      descField.insertAdjacentElement("afterend", hint);
+      return;
+    }
+    if (!SpeechRecognitionCtor) return;
 
     var micBtn = document.createElement("button");
     micBtn.type = "button";
