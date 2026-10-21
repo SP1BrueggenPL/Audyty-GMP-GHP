@@ -125,52 +125,86 @@ document.addEventListener("DOMContentLoaded", function () {
       "aborted": "",
     };
 
+    // Chrome na Androidzie ignoruje "continuous" i kończy rozpoznawanie po
+    // pierwszej frazie/pauzie (zdarzenie "end"). Dlatego "wantListening"
+    // oznacza zamiar użytkownika (do kliknięcia "Zatrzymaj"), a po każdym "end"
+    // przy aktywnym zamiarze sesję startujemy od nowa.
     var recognition = new SpeechRecognitionCtor();
     recognition.lang = "pl-PL";
     recognition.interimResults = false;
     recognition.continuous = true;
-    var listening = false;
+    var wantListening = false;
+    var lastStartAt = 0;
+    var quickEnds = 0;
+    var FATAL_ERRORS = ["not-allowed", "service-not-allowed", "audio-capture", "network"];
 
-    function stopUi() {
-      listening = false;
-      micBtn.textContent = "🎤 Dyktuj opis";
-      micBtn.classList.remove("mic-active");
+    function setUi(active) {
+      micBtn.textContent = active ? "⏹ Zatrzymaj dyktowanie" : "🎤 Dyktuj opis";
+      micBtn.classList.toggle("mic-active", active);
+    }
+
+    function startRecognition() {
+      lastStartAt = Date.now();
+      recognition.start();
+    }
+
+    function giveUp(message) {
+      wantListening = false;
+      setUi(false);
+      micStatus.textContent = message;
     }
 
     recognition.addEventListener("result", function (e) {
       var transcript = "";
       for (var i = e.resultIndex; i < e.results.length; i++) {
-        transcript += e.results[i][0].transcript;
+        if (e.results[i].isFinal) transcript += e.results[i][0].transcript;
       }
       transcript = transcript.trim();
       if (transcript) {
         descField.value = (descField.value ? descField.value.replace(/\s+$/, "") + " " : "") + transcript;
+        descField.dispatchEvent(new Event("input", { bubbles: true })); // uruchamia autozapis
         micStatus.textContent = "";
       }
     });
-    recognition.addEventListener("end", stopUi);
+
+    recognition.addEventListener("end", function () {
+      if (!wantListening) {
+        setUi(false);
+        return;
+      }
+      quickEnds = (Date.now() - lastStartAt < 800) ? quickEnds + 1 : 0;
+      if (quickEnds >= 3) {
+        giveUp("Dyktowanie przerywa się od razu po uruchomieniu - sprawdź uprawnienia mikrofonu i połączenie z internetem.");
+        return;
+      }
+      setTimeout(function () {
+        if (!wantListening) return;
+        try { startRecognition(); } catch (err) { giveUp("Nie udało się wznowić dyktowania."); }
+      }, 200);
+    });
+
     recognition.addEventListener("error", function (e) {
-      stopUi();
-      var msg = MIC_ERROR_MESSAGES.hasOwnProperty(e.error)
-        ? MIC_ERROR_MESSAGES[e.error]
-        : "Dyktowanie nie powiodło się (" + e.error + ").";
-      micStatus.textContent = msg;
+      if (FATAL_ERRORS.indexOf(e.error) !== -1) {
+        giveUp(MIC_ERROR_MESSAGES[e.error]);
+      }
+      // "no-speech"/"aborted": zwykła cisza lub przerwanie sesji - po "end" wznawiamy.
     });
 
     micBtn.addEventListener("click", function () {
-      if (listening) {
-        recognition.stop();
+      if (wantListening) {
+        wantListening = false;
+        setUi(false);
+        try { recognition.stop(); } catch (err) { /* sesja już zakończona */ }
         return;
       }
       micStatus.textContent = "";
+      quickEnds = 0;
       try {
-        recognition.start();
-        listening = true;
-        micBtn.textContent = "⏹ Zatrzymaj dyktowanie";
-        micBtn.classList.add("mic-active");
+        wantListening = true;
+        startRecognition();
+        setUi(true);
       } catch (err) {
-        stopUi();
-        micStatus.textContent = "Nie udało się uruchomić mikrofonu na tym urządzeniu.";
+        giveUp("Nie udało się uruchomić mikrofonu na tym urządzeniu.");
       }
     });
   }
