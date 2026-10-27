@@ -741,34 +741,189 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // AI wskazało, że zdjęcie pasuje do innego punktu: audytor wybiera - przenieść opis
-  // i zdjęcia automatycznie albo zostawić tak, jak jest. Przenoszenie działa w wersji
-  // roboczej (po zapisaniu wszystkiego strona odświeża się na właściwym punkcie).
-  function handleMismatch(data, photoInput, statusEl) {
-    var canMove = DRAFT_MODE && moveUrl && data.mismatch_item_id;
-    var text = "AI sugeruje, że to zdjęcie dotyczy punktu:\n" + data.mismatch_point +
-      (data.mismatch_reason ? "\n\nUzasadnienie: " + data.mismatch_reason : "");
-    var buttons = [];
-    if (canMove) buttons.push({ value: "move", primary: true, label: "Przenieś opis i zdjęcie do tego punktu" });
-    buttons.push({ value: "stay", primary: false, label: canMove ? "Zostaw w obecnym punkcie" : "Rozumiem" });
-    askChoice("Zdjęcie chyba nie pasuje do tego punktu", text, buttons).then(function (choice) {
-      if (choice === "move") moveToPoint(photoInput, data.mismatch_item_id, statusEl);
-      else statusEl.textContent = "Zostawiono w obecnym punkcie.";
+  // Lista punktów checklisty z formularza (do wyboru punktu docelowego).
+  function collectPoints() {
+    var points = [];
+    document.querySelectorAll(".item-row").forEach(function (row) {
+      var sectionEl = row.closest(".section-block");
+      var sectionTitle = sectionEl && sectionEl.querySelector(".section-head h3");
+      var numberEl = row.querySelector(".item-number");
+      var descEl = row.querySelector(".item-desc");
+      var number = numberEl ? numberEl.textContent.trim() : "";
+      points.push({
+        id: String(row.dataset.itemId),
+        section: sectionTitle ? sectionTitle.textContent.trim() : "",
+        number: number,
+        text: descEl ? descEl.textContent.replace(number, "").trim() : "",
+      });
+    });
+    return points;
+  }
+
+  // Wybierak punktu: wyszukiwarka + lista pogrupowana wg zakresów. Wybór zaznacza punkt,
+  // dopiero osobny przycisk zatwierdza (żeby nie przenieść niezgodności przypadkowym dotknięciem).
+  // Zwraca id wybranego punktu albo null (anulowano).
+  function pickPoint(currentItemId, suggestedId) {
+    return new Promise(function (resolve) {
+      var points = collectPoints();
+      var current = String(currentItemId);
+      var selectedId = suggestedId && String(suggestedId) !== current ? String(suggestedId) : null;
+
+      var overlay = document.createElement("div");
+      overlay.className = "choice-overlay";
+      var box = document.createElement("div");
+      box.className = "choice-box choice-box-wide";
+      box.setAttribute("role", "dialog");
+      box.setAttribute("aria-modal", "true");
+      var h = document.createElement("h3");
+      h.textContent = "Przenieś niezgodność do innego punktu";
+      var hint = document.createElement("p");
+      hint.className = "choice-text";
+      hint.textContent = "Opis, lokalizacja, osoba odpowiedzialna i wszystkie zdjęcia przeniosą się razem z niezgodnością.";
+      var search = document.createElement("input");
+      search.type = "search";
+      search.className = "point-search";
+      search.placeholder = "Szukaj: numer punktu lub fragment treści…";
+      var list = document.createElement("div");
+      list.className = "point-list";
+      var actions = document.createElement("div");
+      actions.className = "choice-actions";
+      var confirmBtn = document.createElement("button");
+      confirmBtn.type = "button";
+      confirmBtn.className = "btn btn-primary";
+      var cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.className = "btn btn-outline";
+      cancelBtn.textContent = "Anuluj";
+      actions.appendChild(confirmBtn);
+      actions.appendChild(cancelBtn);
+      [h, hint, search, list, actions].forEach(function (el) { box.appendChild(el); });
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+
+      function close(result) { overlay.remove(); resolve(result); }
+
+      function updateConfirm() {
+        var chosen = points.filter(function (p) { return p.id === selectedId; })[0];
+        confirmBtn.disabled = !chosen;
+        confirmBtn.textContent = chosen ? "Przenieś do punktu " + chosen.number : "Wybierz punkt z listy";
+      }
+
+      function renderList() {
+        var scrollTop = list.scrollTop;
+        var q = search.value.trim().toLowerCase();
+        list.innerHTML = "";
+        var lastSection = null;
+        points.forEach(function (pt) {
+          if (q && (pt.section + " " + pt.number + " " + pt.text).toLowerCase().indexOf(q) === -1) return;
+          if (pt.section !== lastSection) {
+            var head = document.createElement("div");
+            head.className = "point-section";
+            head.textContent = pt.section;
+            list.appendChild(head);
+            lastSection = pt.section;
+          }
+          var opt = document.createElement("button");
+          opt.type = "button";
+          var isCurrent = pt.id === current;
+          opt.className = "point-option" + (isCurrent ? " is-current" : "") + (pt.id === selectedId ? " is-selected" : "");
+          opt.disabled = isCurrent;
+          opt.textContent = pt.number + " - " + (pt.text.length > 140 ? pt.text.slice(0, 140) + "…" : pt.text);
+          var tag = null;
+          if (isCurrent) tag = "obecny punkt";
+          else if (suggestedId && pt.id === String(suggestedId)) tag = "sugestia AI";
+          if (tag) {
+            var t = document.createElement("span");
+            t.className = "point-tag";
+            t.textContent = tag;
+            opt.appendChild(t);
+          }
+          opt.addEventListener("click", function () {
+            selectedId = pt.id;
+            renderList();
+            updateConfirm();
+          });
+          list.appendChild(opt);
+        });
+        if (!list.children.length) {
+          var none = document.createElement("div");
+          none.className = "point-section";
+          none.textContent = "Brak punktów pasujących do wyszukiwania.";
+          list.appendChild(none);
+        }
+        list.scrollTop = scrollTop;
+      }
+
+      search.addEventListener("input", renderList);
+      confirmBtn.addEventListener("click", function () { if (selectedId) close(selectedId); });
+      cancelBtn.addEventListener("click", function () { close(null); });
+      renderList();
+      updateConfirm();
+      var picked = list.querySelector(".is-selected");
+      if (picked && picked.scrollIntoView) picked.scrollIntoView({ block: "center" });
     });
   }
 
-  function moveToPoint(photoInput, targetItemId, statusEl) {
+  // AI wskazało, że zdjęcie pasuje do innego punktu: audytor wybiera - przenieść do punktu
+  // z sugestii, wybrać INNY punkt samodzielnie albo zostawić tak, jak jest.
+  function handleMismatch(data, photoInput, statusEl) {
+    var block = photoInput.closest(".item-nc-block");
     var slot = photoSlot(photoInput);
+    var canMove = !!(moveUrl && block && slot && slot.kind === "item");
+    var canMoveToSuggestion = canMove && data.mismatch_item_id;
+    var text = "AI sugeruje, że to zdjęcie dotyczy punktu:\n" + data.mismatch_point +
+      (data.mismatch_reason ? "\n\nUzasadnienie: " + data.mismatch_reason : "") +
+      (canMove ? "\n\nMożesz się z tym nie zgodzić i wskazać inny punkt albo zostawić niezgodność tutaj." : "");
+    var buttons = [];
+    if (canMoveToSuggestion) buttons.push({ value: "move", primary: true, label: "Przenieś opis i zdjęcie do tego punktu" });
+    if (canMove) buttons.push({ value: "pick", primary: !canMoveToSuggestion, label: "Wybierz inny punkt…" });
+    buttons.push({ value: "stay", primary: false, label: canMove ? "Zostaw w obecnym punkcie" : "Rozumiem" });
+    askChoice("Zdjęcie chyba nie pasuje do tego punktu", text, buttons).then(function (choice) {
+      if (choice === "move") {
+        moveToPoint(block, data.mismatch_item_id, statusEl);
+      } else if (choice === "pick") {
+        pickPoint(slot.itemId, data.mismatch_item_id).then(function (id) {
+          if (id) moveToPoint(block, id, statusEl);
+          else statusEl.textContent = "Zostawiono w obecnym punkcie.";
+        });
+      } else {
+        statusEl.textContent = "Zostawiono w obecnym punkcie.";
+      }
+    });
+  }
+
+  // Ręczne przeniesienie (bez AI) - przycisk "Przenieś do innego punktu" przy niezgodności
+  // wpisanej w złym miejscu, żeby nie trzeba było jej usuwać i wpisywać od nowa.
+  function startManualMove(btn) {
+    var block = btn.closest(".item-nc-block");
+    var input = block && block.querySelector(".photo-input");
+    var slot = input && photoSlot(input);
+    var statusEl = block && block.querySelector(".ai-status");
+    if (!slot || slot.kind !== "item" || !statusEl) return;
+    pickPoint(slot.itemId, null).then(function (id) {
+      if (id) moveToPoint(block, id, statusEl);
+    });
+  }
+
+  function moveToPoint(block, targetItemId, statusEl) {
+    var input = block.querySelector(".photo-input");
+    var slot = input && photoSlot(input);
     if (!slot || slot.kind !== "item") {
       statusEl.textContent = "Tej niezgodności nie można przenieść automatycznie.";
       return;
     }
+    if (!DRAFT_MODE && !confirm("Niezgodność zostanie przeniesiona od razu, a strona odświeży się - " +
+        "niezapisane zmiany w formularzu zostaną utracone. Kontynuować?")) {
+      return;
+    }
     statusEl.textContent = "Przenoszę niezgodność…";
-    requestAutosave(); // zapisuje opis wstawiony przez AI, zanim niezgodność zmieni punkt
+    if (DRAFT_MODE) requestAutosave(); // zapisuje opis i zdjęcia, zanim niezgodność zmieni punkt
     whenIdle().then(function () {
       var idField = form.querySelector('input[name="' + slot.prefix + '-id"]');
       if (!idField || !idField.value) {
-        statusEl.textContent = "Poczekaj, aż zdjęcie się zapisze, i spróbuj ponownie.";
+        statusEl.textContent = DRAFT_MODE
+          ? "Najpierw wpisz opis albo dodaj zdjęcie (niezgodność musi się zapisać), potem przenieś."
+          : "Ta niezgodność nie jest jeszcze zapisana - zapisz inspekcję, a potem ją przenieś.";
         return null;
       }
       var fd = new FormData();
@@ -904,6 +1059,12 @@ document.addEventListener("DOMContentLoaded", function () {
     if (removeBtn) {
       var ncBlock = removeBtn.closest(".item-nc-block") || removeBtn.closest(".extra-nc-block");
       if (ncBlock) removeNcBlock(ncBlock);
+      return;
+    }
+
+    var moveBtn = target.closest(".move-nc-btn");
+    if (moveBtn) {
+      startManualMove(moveBtn);
       return;
     }
 

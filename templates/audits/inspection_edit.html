@@ -22,7 +22,7 @@
 </div>
 {% endif %}
 
-<form method="post" enctype="multipart/form-data" id="inspection-form" data-users-url="{% url 'users_by_shift' %}" data-suggest-url="{% url 'suggest_nonconformity' %}" data-area-code="{{ inspection.template.area_code }}" data-preselected-reps="{{ area_rep_ids_csv }}" data-photo-delete-url="{% url 'nc_photo_delete' 0 %}" {% if is_draft %}data-autosave="1" data-upload-url="{% url 'inspection_photo_upload' inspection.pk %}" data-move-url="{% url 'inspection_move_nc' inspection.pk %}"{% endif %}>
+<form method="post" enctype="multipart/form-data" id="inspection-form" data-users-url="{% url 'users_by_shift' %}" data-suggest-url="{% url 'suggest_nonconformity' %}" data-area-code="{{ inspection.template.area_code }}" data-preselected-reps="{{ area_rep_ids_csv }}" data-photo-delete-url="{% url 'nc_photo_delete' 0 %}" data-move-url="{% url 'inspection_move_nc' inspection.pk %}" {% if is_draft %}data-autosave="1" data-upload-url="{% url 'inspection_photo_upload' inspection.pk %}"{% endif %}>
   {% csrf_token %}
   <input type="hidden" name="delete_nc_ids" id="delete-nc-ids" value="">
 
@@ -130,6 +130,7 @@
                 {% endif %}
                 <input type="file" name="item_{{ item.id }}_nc-{{ forloop.counter0 }}-photos" class="photo-input" data-existing-photos="{{ nc.photos.all|length }}" data-item-id="{{ item.id }}" accept="image/*" multiple capture="environment">
                 <button type="button" class="btn btn-outline btn-sm suggest-ai-btn" data-item-id="{{ item.id }}" style="margin-top:.5rem;">✨ Podpowiedz opis (AI)</button>
+                <button type="button" class="btn btn-outline btn-sm move-nc-btn" style="margin-top:.5rem;" title="Niezgodność wpisana w złym miejscu - przenieś ją razem z opisem i zdjęciami">↪ Przenieś do innego punktu</button>
                 <span class="ai-status muted" data-item-id="{{ item.id }}" style="margin-left:.5rem;"></span>
               </div>
               {% if not forloop.first %}<button type="button" class="btn btn-outline btn-sm remove-item-nc" style="margin-top:.5rem;">🗑 Usuń tę niezgodność</button>{% endif %}
@@ -164,6 +165,7 @@
                 <label>Zdjęcia niezgodności</label>
                 <input type="file" name="item_{{ item.id }}_nc-0-photos" class="photo-input" data-item-id="{{ item.id }}" accept="image/*" multiple capture="environment">
                 <button type="button" class="btn btn-outline btn-sm suggest-ai-btn" data-item-id="{{ item.id }}" style="margin-top:.5rem;">✨ Podpowiedz opis (AI)</button>
+                <button type="button" class="btn btn-outline btn-sm move-nc-btn" style="margin-top:.5rem;" title="Niezgodność wpisana w złym miejscu - przenieś ją razem z opisem i zdjęciami">↪ Przenieś do innego punktu</button>
                 <span class="ai-status muted" data-item-id="{{ item.id }}" style="margin-left:.5rem;"></span>
               </div>
             </div>
@@ -312,6 +314,7 @@
         <label>Zdjęcia niezgodności</label>
         <input type="file" name="item___ITEMID___nc-__prefix__-photos" class="photo-input" accept="image/*" multiple capture="environment">
         <button type="button" class="btn btn-outline btn-sm suggest-ai-btn" style="margin-top:.5rem;">✨ Podpowiedz opis (AI)</button>
+                <button type="button" class="btn btn-outline btn-sm move-nc-btn" style="margin-top:.5rem;" title="Niezgodność wpisana w złym miejscu - przenieś ją razem z opisem i zdjęciami">↪ Przenieś do innego punktu</button>
         <span class="ai-status muted" style="margin-left:.5rem;"></span>
       </div>
       <button type="button" class="btn btn-outline btn-sm remove-item-nc" style="margin-top:.5rem;">🗑 Usuń tę niezgodność</button>
