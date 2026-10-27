@@ -273,7 +273,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .badge-w_toku { background: var(--gold); color: var(--claret); }
-.badge-zarejestrowana { background: var(--pink); color: var(--white); }
+.badge-zarejestrowana { background: var(--border); color: var(--charcoal); }
 .badge-wdrozone { background: var(--green); color: var(--white); }
 .badge-anulowane { background: var(--border); color: var(--charcoal); }
 .badge-overdue { background: var(--coral); color: var(--white); }
