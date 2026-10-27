@@ -5,7 +5,7 @@ from django.db import models
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.models import Department
+from accounts.models import Department, Role
 
 
 def round_percent(value):
@@ -19,13 +19,13 @@ def round_percent(value):
 NC_PLACEHOLDER_DESCRIPTION = "(opis do uzupełnienia)"
 
 
-def nc_deducts_points(responsible_person, representative_ids):
+def nc_deducts_points(responsible_person):
     """Czy niezgodność odejmuje punkty od wyniku inspekcji.
 
-    Niezgodność przypisana do osoby z listy "Przedstawiciele obszaru" TEJ inspekcji
-    NIE odejmuje punktów - odejmuje dopiero niezgodność przypisana komuś spoza tej
-    listy (osobie odpowiedzialnej). Niezgodność bez przypisanej osoby odejmuje."""
-    return responsible_person is None or responsible_person.pk not in representative_ids
+    NIE odejmuje, gdy przypisana osoba ma rolę "Użytkownik obszaru". Odejmuje, gdy osoba
+    ma rolę działową (Pakownia/Produkcja, Techniczny, Logistyka) - i w każdym innym
+    przypadku, także gdy nie przypisano nikogo."""
+    return responsible_person is None or responsible_person.role != Role.UZYTKOWNIK_OBSZARU
 
 
 class AreaCode(models.TextChoices):
@@ -195,12 +195,11 @@ class Inspection(models.Model):
     def compute_extra_nc_penalty(self):
         """Suma wag punktowych dodatkowych niezgodności (waga punktu checklisty, do którego są
         przypisane, albo 1 pkt dla niezgodności bez punktu odniesienia) - bez tych przypisanych
-        do przedstawicieli obszaru tej inspekcji."""
-        representative_ids = set(self.area_representatives.values_list("pk", flat=True))
+        do osoby z rolą "Użytkownik obszaru" (patrz nc_deducts_points)."""
         return sum(
             (nc.checklist_item.penalty_weight if nc.checklist_item_id else 1)
             for nc in self.nonconformities.filter(is_extra=True).select_related("checklist_item", "responsible_person")
-            if nc_deducts_points(nc.responsible_person, representative_ids)
+            if nc_deducts_points(nc.responsible_person)
         )
 
     @property

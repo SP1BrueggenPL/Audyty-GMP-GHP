@@ -127,16 +127,15 @@ def _create_extra_nc(inspection, department, area_rep_text, all_items, item_id, 
 
 def _recalculate_section_points(inspection):
     """Punkty sekcji: każda niezgodność na punkcie checklisty odlicza wagę tego punktu,
-    chyba że jest przypisana do przedstawiciela obszaru tej inspekcji (patrz nc_deducts_points).
+    chyba że jest przypisana do osoby z rolą "Użytkownik obszaru" (patrz nc_deducts_points).
     Zapisuje też odjęcie za "dodatkowe" niezgodności, żeby wynik był trwały."""
-    representative_ids = set(inspection.area_representatives.values_list("pk", flat=True))
     for section in inspection.template.sections.all():
         section_ncs = NonConformity.objects.filter(
             inspection=inspection, is_extra=False, checklist_item__subsection__section=section,
         ).select_related("checklist_item", "responsible_person")
         weight_sum = sum(
             nc.checklist_item.penalty_weight for nc in section_ncs
-            if nc_deducts_points(nc.responsible_person, representative_ids)
+            if nc_deducts_points(nc.responsible_person)
         )
         InspectionSectionResult.objects.update_or_create(
             inspection=inspection, section=section,
