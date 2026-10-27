@@ -717,3 +717,17 @@ table.nice td.score-bad { background: #FDEAEA; color: var(--coral); font-weight:
   .topbar { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
   .item-row { grid-template-columns: 1fr; }
 }
+
+/* Zdjęcia już zapisane na serwerze (z przyciskiem usunięcia) i okno wyboru "przenieś / zostaw". */
+.existing-photo { position: relative; display: inline-block; }
+.existing-photo .photo-thumb-remove { top: 3px; right: 3px; }
+
+.choice-overlay {
+  position: fixed; inset: 0; z-index: 1000; background: rgba(20, 15, 17, 0.6);
+  display: flex; align-items: center; justify-content: center; padding: 1rem;
+}
+.choice-box { background: var(--white); border-radius: var(--radius-sm); max-width: 460px; width: 100%; padding: 1.25rem; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3); }
+.choice-box h3 { margin: 0 0 .6rem; font-size: 1.05rem; }
+.choice-text { margin: 0 0 1rem; font-size: .92rem; line-height: 1.4; }
+.choice-actions { display: flex; flex-direction: column; gap: .5rem; }
+.choice-actions .btn { width: 100%; text-align: center; }

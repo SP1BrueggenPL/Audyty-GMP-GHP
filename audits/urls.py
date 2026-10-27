@@ -12,6 +12,7 @@ urlpatterns = [
     path("inspekcje/<int:pk>/edytuj/", views.inspection_edit, name="inspection_edit"),
     path("inspekcje/<int:pk>/usun/", views.inspection_delete, name="inspection_delete"),
     path("inspekcje/<int:pk>/zdjecie/", views.inspection_photo_upload, name="inspection_photo_upload"),
+    path("inspekcje/<int:pk>/przenies-niezgodnosc/", views.inspection_move_nc, name="inspection_move_nc"),
     path("zdjecia/<int:pk>/usun/", views.nc_photo_delete, name="nc_photo_delete"),
     path("galeria/", views.photo_gallery, name="photo_gallery"),
     path("galeria/<int:pk>/usun/", views.gallery_photo_delete, name="gallery_photo_delete"),

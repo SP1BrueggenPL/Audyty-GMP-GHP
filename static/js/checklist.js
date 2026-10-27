@@ -20,6 +20,7 @@ document.addEventListener("DOMContentLoaded", function () {
   var DRAFT_MODE = form.dataset.autosave === "1";
   var uploadUrl = form.dataset.uploadUrl;
   var photoDeleteUrl = form.dataset.photoDeleteUrl;
+  var moveUrl = form.dataset.moveUrl;
 
   // ---- 0) Jedna kolejka żądań zapisu -----------------------------------------
   // Autozapis tekstu i wysyłka zdjęć idą PO KOLEI, nigdy równolegle - dzięki temu
@@ -87,7 +88,7 @@ document.addEventListener("DOMContentLoaded", function () {
   function enhancePhotoInputDraft(input) {
     var slot = photoSlot(input);
     if (!slot || !uploadUrl) return false;
-    var existing = parseInt(input.dataset.existingPhotos || "0", 10) || 0;
+    function existingCount() { return parseInt(input.dataset.existingPhotos || "0", 10) || 0; }
     var entries = [];
     input._entries = entries;
 
@@ -152,7 +153,7 @@ document.addEventListener("DOMContentLoaded", function () {
         item.appendChild(rm);
         thumbsEl.appendChild(item);
       });
-      countEl.textContent = (existing + entries.length) + " / " + MAX_PHOTOS + " zdjęć" +
+      countEl.textContent = (existingCount() + entries.length) + " / " + MAX_PHOTOS + " zdjęć" +
         (entries.length ? " · zapisane w inspekcji: " + saved + " z " + entries.length + " nowych" : "");
       shareRow.style.display = entries.length ? "" : "none";
     }
@@ -249,7 +250,7 @@ document.addEventListener("DOMContentLoaded", function () {
     input.addEventListener("change", function () {
       var incoming = Array.prototype.slice.call(input.files || []);
       input.value = ""; // pliki przejmuje lista "entries" - pole zostaje puste, żeby ten sam plik dało się wybrać ponownie
-      var room = MAX_PHOTOS - existing - entries.length;
+      var room = MAX_PHOTOS - existingCount() - entries.length;
       if (incoming.length > room) {
         alert("Można dodać maksymalnie " + MAX_PHOTOS + " zdjęć do jednej niezgodności.");
       }
@@ -260,6 +261,8 @@ document.addEventListener("DOMContentLoaded", function () {
       });
       render();
     });
+
+    input._render = render;
 
     // Do podpowiedzi AI - pierwsze zdjęcie z tego pola (pole "files" jest puste).
     input._firstFile = function () {
@@ -705,6 +708,119 @@ document.addEventListener("DOMContentLoaded", function () {
     scheduleAutosave(1000);
   }
 
+  // Okno z własnymi przyciskami (confirm() pozwala tylko na OK/Anuluj bez opisu akcji).
+  function askChoice(title, text, buttons) {
+    return new Promise(function (resolve) {
+      var overlay = document.createElement("div");
+      overlay.className = "choice-overlay";
+      var box = document.createElement("div");
+      box.className = "choice-box";
+      box.setAttribute("role", "dialog");
+      box.setAttribute("aria-modal", "true");
+      var h = document.createElement("h3");
+      h.textContent = title;
+      var p = document.createElement("p");
+      p.className = "choice-text";
+      p.style.whiteSpace = "pre-line";
+      p.textContent = text;
+      var actions = document.createElement("div");
+      actions.className = "choice-actions";
+      buttons.forEach(function (b) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn " + (b.primary ? "btn-primary" : "btn-outline");
+        btn.textContent = b.label;
+        btn.addEventListener("click", function () { overlay.remove(); resolve(b.value); });
+        actions.appendChild(btn);
+      });
+      box.appendChild(h);
+      box.appendChild(p);
+      box.appendChild(actions);
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+    });
+  }
+
+  // AI wskazało, że zdjęcie pasuje do innego punktu: audytor wybiera - przenieść opis
+  // i zdjęcia automatycznie albo zostawić tak, jak jest. Przenoszenie działa w wersji
+  // roboczej (po zapisaniu wszystkiego strona odświeża się na właściwym punkcie).
+  function handleMismatch(data, photoInput, statusEl) {
+    var canMove = DRAFT_MODE && moveUrl && data.mismatch_item_id;
+    var text = "AI sugeruje, że to zdjęcie dotyczy punktu:\n" + data.mismatch_point +
+      (data.mismatch_reason ? "\n\nUzasadnienie: " + data.mismatch_reason : "");
+    var buttons = [];
+    if (canMove) buttons.push({ value: "move", primary: true, label: "Przenieś opis i zdjęcie do tego punktu" });
+    buttons.push({ value: "stay", primary: false, label: canMove ? "Zostaw w obecnym punkcie" : "Rozumiem" });
+    askChoice("Zdjęcie chyba nie pasuje do tego punktu", text, buttons).then(function (choice) {
+      if (choice === "move") moveToPoint(photoInput, data.mismatch_item_id, statusEl);
+      else statusEl.textContent = "Zostawiono w obecnym punkcie.";
+    });
+  }
+
+  function moveToPoint(photoInput, targetItemId, statusEl) {
+    var slot = photoSlot(photoInput);
+    if (!slot || slot.kind !== "item") {
+      statusEl.textContent = "Tej niezgodności nie można przenieść automatycznie.";
+      return;
+    }
+    statusEl.textContent = "Przenoszę niezgodność…";
+    requestAutosave(); // zapisuje opis wstawiony przez AI, zanim niezgodność zmieni punkt
+    whenIdle().then(function () {
+      var idField = form.querySelector('input[name="' + slot.prefix + '-id"]');
+      if (!idField || !idField.value) {
+        statusEl.textContent = "Poczekaj, aż zdjęcie się zapisze, i spróbuj ponownie.";
+        return null;
+      }
+      var fd = new FormData();
+      fd.append("nc_id", idField.value);
+      fd.append("target_item_id", targetItemId);
+      fd.append("description", fieldValue(slot.prefix + "-description"));
+      return fetch(moveUrl, {
+        method: "POST", body: fd, headers: { "X-CSRFToken": csrfToken() }, credentials: "same-origin",
+      })
+        .then(readJson)
+        .then(function (res) {
+          if (res.data.ok) {
+            location.hash = "item-" + targetItemId;
+            location.reload();
+          } else {
+            statusEl.textContent = res.data.error || "Nie udało się przenieść niezgodności.";
+          }
+        })
+        .catch(function () { statusEl.textContent = "Brak połączenia - niezgodność nie została przeniesiona."; });
+    });
+  }
+
+  // Usunięcie zdjęcia, które jest już zapisane na serwerze (np. po wznowieniu wersji roboczej
+  // albo przy edycji ukończonej inspekcji) - przycisk ✕ na miniaturze, na wypadek pomyłki.
+  function deleteExistingPhoto(btn) {
+    if (!confirm("Usunąć to zdjęcie z inspekcji? Tej operacji nie można cofnąć.")) return;
+    btn.disabled = true;
+    fetch(photoDeleteUrl.replace("/0/", "/" + btn.dataset.photoId + "/"), {
+      method: "POST", headers: { "X-CSRFToken": csrfToken() }, credentials: "same-origin",
+    })
+      .then(readJson)
+      .then(function (res) {
+        if (!res.data.ok) {
+          btn.disabled = false;
+          alert(res.data.error || "Nie udało się usunąć zdjęcia.");
+          return;
+        }
+        var field = btn.closest(".field");
+        var input = field && field.querySelector(".photo-input");
+        var holder = btn.closest(".existing-photo");
+        if (holder) holder.remove();
+        if (input) {
+          input.dataset.existingPhotos = Math.max(0, (parseInt(input.dataset.existingPhotos || "0", 10) || 0) - 1);
+          if (input._render) input._render();
+        }
+      })
+      .catch(function () {
+        btn.disabled = false;
+        alert("Brak połączenia - zdjęcie nie zostało usunięte.");
+      });
+  }
+
   function handleAiSuggest(btn) {
     var block = btn.closest(".item-nc-block") || btn.closest(".extra-nc-block") || btn.closest(".nc-detail");
     var photoInput = block.querySelector(".photo-input");
@@ -740,12 +856,7 @@ document.addEventListener("DOMContentLoaded", function () {
           statusEl.textContent = data.error || "Nie udało się wygenerować podpowiedzi.";
         }
         if (data.mismatch_point) {
-          alert(
-            "To zdjęcie wygląda na niepasujące do bieżącego punktu.\n\n" +
-            "Sugerowany punkt: " + data.mismatch_point +
-            (data.mismatch_reason ? "\nUzasadnienie: " + data.mismatch_reason : "") +
-            "\n\nSprawdź i w razie potrzeby przenieś tę niezgodność pod właściwy punkt."
-          );
+          handleMismatch(data, photoInput, statusEl);
         }
       })
       .catch(function () {
@@ -793,6 +904,12 @@ document.addEventListener("DOMContentLoaded", function () {
     if (removeBtn) {
       var ncBlock = removeBtn.closest(".item-nc-block") || removeBtn.closest(".extra-nc-block");
       if (ncBlock) removeNcBlock(ncBlock);
+      return;
+    }
+
+    var removeExistingBtn = target.closest(".existing-photo-remove");
+    if (removeExistingBtn) {
+      deleteExistingPhoto(removeExistingBtn);
       return;
     }
 

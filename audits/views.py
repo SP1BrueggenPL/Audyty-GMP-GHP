@@ -1,3 +1,4 @@
+import re
 from datetime import timedelta
 
 from accounts.models import Department, eligible_area_users
@@ -39,6 +40,7 @@ from .models import (
     NCStatus,
     NonConformity,
     NC_PLACEHOLDER_DESCRIPTION,
+    NCPhotoKind,
     NonConformityPhoto,
     PhotoArchive,
     Shift,
@@ -121,6 +123,23 @@ def _create_extra_nc(inspection, department, area_rep_text, all_items, item_id, 
         point_description=point_desc, location_detail=location, description=description,
         responsible_person_id=responsible_id,
     )
+
+
+def _recalculate_section_points(inspection):
+    """Punkty sekcji: każda niezgodność na punkcie checklisty odlicza wagę tego punktu,
+    chyba że osoba odpowiedzialna jest z innej zmiany niż audytowana."""
+    for section in inspection.template.sections.all():
+        section_ncs = NonConformity.objects.filter(
+            inspection=inspection, is_extra=False, checklist_item__subsection__section=section,
+        ).select_related("checklist_item", "responsible_person")
+        weight_sum = sum(
+            nc.checklist_item.penalty_weight for nc in section_ncs
+            if nc_counts_against_shift(nc.responsible_person, inspection.shift)
+        )
+        InspectionSectionResult.objects.update_or_create(
+            inspection=inspection, section=section,
+            defaults={"points_awarded": max(0, section.max_points - weight_sum)},
+        )
 
 
 def _ordered_nonconformities(qs):
@@ -236,15 +255,33 @@ def suggest_nonconformity(request):
     all_points = []
     if item is not None:
         template = item.subsection.section.template
-        all_points = [
-            (it.number, it.description)
-            for it in ChecklistItem.objects.filter(subsection__section__template=template)
-            .select_related("subsection").order_by(
+        template_items = list(
+            ChecklistItem.objects.filter(subsection__section__template=template)
+            .select_related("subsection__section").order_by(
                 "subsection__section__order", "subsection__order", "order",
             )
+        )
+        all_points = [
+            (f"P{it.pk}", f"[{it.subsection.section.label}] {it.number} {it.description}")
+            for it in template_items
         ]
+        items_by_id = {it.pk: it for it in template_items}
 
     result = suggest_nc_description(photo=photo, past_examples=past_examples, item=item, all_points=all_points)
+
+    # AI wskazuje punkt kodem "P<id>" - zamieniamy go na konkretny punkt (albo odrzucamy, jeśli
+    # kod jest nieczytelny lub wskazuje ten sam punkt, przy którym audytor już jest).
+    result["mismatch_item_id"] = None
+    if result.get("mismatch_point") and item is not None:
+        m = re.match(r"\s*P(\d+)(?!\d)", result["mismatch_point"], re.IGNORECASE)
+        target = items_by_id.get(int(m.group(1))) if m else None
+        if target is not None and target.pk == item.pk:
+            result["mismatch_point"] = result["mismatch_reason"] = None
+        elif target is not None:
+            result["mismatch_item_id"] = target.pk
+            result["mismatch_point"] = f"{target.subsection.section.label}. {target.number} - {target.description[:90]}"
+        else:
+            result["mismatch_point"] = None  # niejednoznaczna odpowiedź - nie proponujemy przeniesienia
     return JsonResponse(result)
 
 
@@ -491,20 +528,7 @@ def inspection_edit(request, pk):
                 else:
                     inspection.nonconformities.filter(is_extra=True).exclude(pk__in=kept_extra_ids).delete()
 
-                # Punkty sekcji: każda niezgodność na punkcie checklisty odlicza wagę tego
-                # punktu, chyba że osoba odpowiedzialna jest z innej zmiany niż audytowana.
-                for section in sections:
-                    section_ncs = NonConformity.objects.filter(
-                        inspection=inspection, is_extra=False, checklist_item__subsection__section=section,
-                    ).select_related("checklist_item", "responsible_person")
-                    weight_sum = sum(
-                        nc.checklist_item.penalty_weight for nc in section_ncs
-                        if nc_counts_against_shift(nc.responsible_person, inspection.shift)
-                    )
-                    points = max(0, section.max_points - weight_sum)
-                    InspectionSectionResult.objects.update_or_create(
-                        inspection=inspection, section=section, defaults={"points_awarded": points},
-                    )
+                _recalculate_section_points(inspection)
 
             if autosave:
                 return JsonResponse({
@@ -635,9 +659,10 @@ def inspection_photo_upload(request, pk):
 @login_required
 def nc_photo_delete(request, pk):
     photo = get_object_or_404(NonConformityPhoto.objects.select_related("nonconformity__inspection"), pk=pk)
-    inspection = photo.nonconformity.inspection
+    # Zdjęcie niezgodności może usunąć każdy, kto może edytować inspekcję (pomyłka przy
+    # robieniu zdjęcia); zdjęcia "dowód działań" (dodane przez osobę odpowiedzialną) - tylko administrator.
     can_delete = request.user.is_admin_role or (
-        inspection is not None and inspection.status == InspectionStatus.DRAFT and request.user.has_full_access
+        request.user.has_full_access and photo.kind == NCPhotoKind.NIEZGODNOSC
     )
     if not can_delete:
         return JsonResponse({"ok": False, "error": "Brak uprawnień do usunięcia tego zdjęcia."}, status=403)
@@ -646,6 +671,43 @@ def nc_photo_delete(request, pk):
     PhotoArchive.objects.filter(image=name).delete()
     photo.image.storage.delete(name)
     return JsonResponse({"ok": True})
+
+
+@require_POST
+@login_required
+def inspection_move_nc(request, pk):
+    """Przenosi niezgodność (opis, lokalizację, osobę odpowiedzialną i WSZYSTKIE jej zdjęcia)
+    do innego punktu checklisty - np. gdy AI wskazało, że zdjęcie dotyczy innego punktu."""
+    inspection = get_object_or_404(Inspection, pk=pk)
+    if not request.user.has_full_access:
+        return JsonResponse({"ok": False, "error": "Brak uprawnień do tej inspekcji."}, status=403)
+    nc = get_object_or_404(NonConformity, pk=request.POST.get("nc_id"), inspection=inspection, is_extra=False)
+    target = get_object_or_404(
+        ChecklistItem.objects.select_related("subsection__section"),
+        pk=request.POST.get("target_item_id"), subsection__section__template=inspection.template,
+    )
+    source = nc.checklist_item
+    description = request.POST.get("description", "").strip()
+
+    if source is None or source.pk != target.pk:
+        with transaction.atomic():
+            nc.checklist_item = target
+            nc.gmp_category = target.subsection.section.name
+            nc.checklist_point_label = target.number
+            nc.point_description = target.description[:400]
+            if description:
+                nc.description = description
+            nc.save()
+            InspectionItemResult.objects.update_or_create(
+                inspection=inspection, item=target, defaults={"result": ItemResult.NC},
+            )
+            # Punkt, z którego przeniesiono jedyną niezgodność, wraca do "zgodny".
+            if source is not None and not NonConformity.objects.filter(
+                inspection=inspection, checklist_item=source, is_extra=False,
+            ).exists():
+                InspectionItemResult.objects.filter(inspection=inspection, item=source).update(result=ItemResult.OK)
+            _recalculate_section_points(inspection)
+    return JsonResponse({"ok": True, "target_item_id": target.pk})
 
 
 @login_required

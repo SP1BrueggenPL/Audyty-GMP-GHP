@@ -22,7 +22,7 @@
 </div>
 {% endif %}
 
-<form method="post" enctype="multipart/form-data" id="inspection-form" data-users-url="{% url 'users_by_shift' %}" data-suggest-url="{% url 'suggest_nonconformity' %}" data-area-code="{{ inspection.template.area_code }}" data-preselected-reps="{{ area_rep_ids_csv }}" {% if is_draft %}data-autosave="1" data-upload-url="{% url 'inspection_photo_upload' inspection.pk %}" data-photo-delete-url="{% url 'nc_photo_delete' 0 %}"{% endif %}>
+<form method="post" enctype="multipart/form-data" id="inspection-form" data-users-url="{% url 'users_by_shift' %}" data-suggest-url="{% url 'suggest_nonconformity' %}" data-area-code="{{ inspection.template.area_code }}" data-preselected-reps="{{ area_rep_ids_csv }}" data-photo-delete-url="{% url 'nc_photo_delete' 0 %}" {% if is_draft %}data-autosave="1" data-upload-url="{% url 'inspection_photo_upload' inspection.pk %}" data-move-url="{% url 'inspection_move_nc' inspection.pk %}"{% endif %}>
   {% csrf_token %}
   <input type="hidden" name="delete_nc_ids" id="delete-nc-ids" value="">
 
@@ -86,7 +86,7 @@
       <div class="subsection-title">{{ subsection.number }}. {{ subsection.name }}</div>
       {% for item in subsection.items.all %}
       {% with result=item_results|dictkey:item.id ncs=item_ncs|dictkey:item.id %}
-      <div class="item-row" data-item-id="{{ item.id }}" {% for nc in ncs %}{% if nc.root_cause or nc.corrective_action or nc.preventive_action %}data-has-advanced-nc="1"{% endif %}{% endfor %}>
+      <div class="item-row" id="item-{{ item.id }}" data-item-id="{{ item.id }}" {% for nc in ncs %}{% if nc.root_cause or nc.corrective_action or nc.preventive_action %}data-has-advanced-nc="1"{% endif %}{% endfor %}>
         <div class="item-desc"><span class="item-number">{{ item.number }}</span>{{ item.description|linebreaksbr }}</div>
         <div class="result-toggle">
           <label class="opt-ok"><input type="radio" name="item_{{ item.id }}_result" value="OK" {% if not result or result.result == "OK" %}checked{% endif %}><span>OK</span></label>
@@ -125,7 +125,7 @@
                 <label>Zdjęcia niezgodności</label>
                 {% if nc.photos.all %}
                 <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem;">
-                  {% for p in nc.photos.all %}<a href="{{ p.image.url }}" target="_blank"><img src="{{ p.image.url }}" style="height:70px;border-radius:6px;object-fit:cover;"></a>{% endfor %}
+                  {% for p in nc.photos.all %}<span class="existing-photo"><a href="{{ p.image.url }}" target="_blank"><img src="{{ p.image.url }}" style="height:70px;border-radius:6px;object-fit:cover;"></a>{% if p.kind == "NIEZGODNOSC" or user.is_admin_role %}<button type="button" class="photo-thumb-remove existing-photo-remove" data-photo-id="{{ p.pk }}" title="Usuń to zdjęcie (np. pomyłka)">✕</button>{% endif %}</span>{% endfor %}
                 </div>
                 {% endif %}
                 <input type="file" name="item_{{ item.id }}_nc-{{ forloop.counter0 }}-photos" class="photo-input" data-existing-photos="{{ nc.photos.all|length }}" data-item-id="{{ item.id }}" accept="image/*" multiple capture="environment">
@@ -225,7 +225,7 @@
             <label>Zdjęcia</label>
             {% if nc.photos.all %}
             <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem;">
-              {% for p in nc.photos.all %}<a href="{{ p.image.url }}" target="_blank"><img src="{{ p.image.url }}" style="height:70px;border-radius:6px;object-fit:cover;"></a>{% endfor %}
+              {% for p in nc.photos.all %}<span class="existing-photo"><a href="{{ p.image.url }}" target="_blank"><img src="{{ p.image.url }}" style="height:70px;border-radius:6px;object-fit:cover;"></a>{% if p.kind == "NIEZGODNOSC" or user.is_admin_role %}<button type="button" class="photo-thumb-remove existing-photo-remove" data-photo-id="{{ p.pk }}" title="Usuń to zdjęcie (np. pomyłka)">✕</button>{% endif %}</span>{% endfor %}
             </div>
             {% endif %}
             <input type="file" name="extra-{{ forloop.counter0 }}-photos" class="photo-input" data-existing-photos="{{ nc.photos.all|length }}" accept="image/*" multiple capture="environment">

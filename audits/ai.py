@@ -41,11 +41,12 @@ Zadanie:
    jeśli nie jesteś w stanie jej określić, opisz tylko charakter niezgodności.
 3. Jeśli NIE PASUJE (zdjęcie wyraźnie dotyczy innego tematu niż ten punkt) - i tak zaproponuj
    opis tego, co widać, ale DODATKOWO w polu NIEDOPASOWANIE wskaż najlepiej pasujący punkt
-   z pełnej listy checklisty poniżej (podaj DOKŁADNIE jego numer z listy) i krótko uzasadnij.
+   z pełnej listy checklisty poniżej (podaj DOKŁADNIE jego KOD z listy, np. P123) i krótko uzasadnij.
    Jeśli aktualny punkt pasuje najlepiej, wpisz "brak".
 
-Pełna lista punktów checklisty (numer - sekcja - treść) - użyj WYŁĄCZNIE do wskazania numeru
-przy niedopasowaniu, nie cytuj jej w opisie:
+Pełna lista punktów checklisty (KOD: [zakres] numer treść) - numery punktów powtarzają się w różnych
+zakresach, dlatego wskazuj punkt WYŁĄCZNIE kodem. Użyj jej tylko do wskazania kodu przy niedopasowaniu,
+nie cytuj jej w opisie:
 {all_points}
 
 Przykłady wcześniejszych opisów niezgodności dla TEGO punktu (dla stylu/kontekstu, nie
@@ -54,7 +55,7 @@ kopiuj ich treści dosłownie):
 
 Odpowiedz WYŁĄCZNIE w formacie:
 OPIS: <opis niezgodności, 1-3 zdania>
-NIEDOPASOWANIE: <"brak" albo "numer_punktu: krótkie uzasadnienie po polsku">
+NIEDOPASOWANIE: <"brak" albo "KOD_PUNKTU: krótkie uzasadnienie po polsku", np. "P123: zdjęcie pokazuje ...">
 Bez dodatkowych komentarzy, nagłówków ani markdown."""
 
 
