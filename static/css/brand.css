@@ -741,3 +741,13 @@ table.nice td.score-bad { background: #FDEAEA; color: var(--coral); font-weight:
 .point-option.is-selected { background: var(--green-tint); font-weight: 600; }
 .point-option.is-current { opacity: .45; cursor: default; }
 .point-option .point-tag { color: var(--coral); font-size: .75rem; margin-left: .35rem; }
+
+/* Pola wymagane przy niezgodności i komunikat o brakach. */
+.req { color: var(--coral); font-weight: 700; }
+.invalid-field { border: 2px solid var(--coral) !important; background: #FFF1F1 !important; }
+.nc-block-invalid { border-left: 4px solid var(--coral); padding-left: .6rem; }
+.nc-required-banner {
+  position: sticky; top: 0; z-index: 50; margin: 0 0 1rem; padding: .8rem 1rem;
+  background: var(--coral); color: var(--white); border-radius: var(--radius-sm); font-size: .92rem; line-height: 1.4;
+}
+.nc-required-banner ul { margin: .4rem 0 0 1.1rem; padding: 0; }

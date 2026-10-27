@@ -75,6 +75,8 @@
     </div>
   </div>
 
+  <p class="help-text"><span class="req">*</span> Przy każdej niezgodności wymagane są: <strong>lokalizacja, osoba odpowiedzialna i opis</strong>. Zdjęcie jest opcjonalne.</p>
+
   {% for section in sections %}
   <div class="section-block">
     <div class="section-head">
@@ -100,7 +102,7 @@
               <input type="hidden" name="item_{{ item.id }}_nc-{{ forloop.counter0 }}-id" value="{{ nc.pk }}">
               <div class="field-row">
                 <div class="field">
-                  <label>Lokalizacja / miejsce</label>
+                  <label>Lokalizacja / miejsce <span class="req" title="wymagane">*</span></label>
                   {% if inspection.template.area_code == "WED" %}
                   <select name="item_{{ item.id }}_nc-{{ forloop.counter0 }}-location">
                     <option value="">— wybierz lokalizację —</option>
@@ -111,18 +113,18 @@
                   {% endif %}
                 </div>
                 <div class="field">
-                  <label>Osoba odpowiedzialna za niezgodność</label>
+                  <label>Osoba odpowiedzialna za niezgodność <span class="req" title="wymagane">*</span></label>
                   <select name="item_{{ item.id }}_nc-{{ forloop.counter0 }}-responsible" class="responsible-select" data-selected="{{ nc.responsible_person_id|default:'' }}">
                     <option value="">— wybierz osobę odpowiedzialną —</option>
                   </select>
                 </div>
               </div>
               <div class="field">
-                <label>Opis niezgodności</label>
+                <label>Opis niezgodności <span class="req" title="wymagane">*</span></label>
                 <textarea name="item_{{ item.id }}_nc-{{ forloop.counter0 }}-description" rows="2" class="description-field">{{ nc.description }}</textarea>
               </div>
               <div class="field">
-                <label>Zdjęcia niezgodności</label>
+                <label>Zdjęcia niezgodności <span class="muted">(opcjonalnie)</span></label>
                 {% if nc.photos.all %}
                 <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem;">
                   {% for p in nc.photos.all %}<span class="existing-photo"><a href="{{ p.image.url }}" target="_blank"><img src="{{ p.image.url }}" style="height:70px;border-radius:6px;object-fit:cover;"></a>{% if p.kind == "NIEZGODNOSC" or user.is_admin_role %}<button type="button" class="photo-thumb-remove existing-photo-remove" data-photo-id="{{ p.pk }}" title="Usuń to zdjęcie (np. pomyłka)">✕</button>{% endif %}</span>{% endfor %}
@@ -140,7 +142,7 @@
               <input type="hidden" name="item_{{ item.id }}_nc-0-id" value="">
               <div class="field-row">
                 <div class="field">
-                  <label>Lokalizacja / miejsce</label>
+                  <label>Lokalizacja / miejsce <span class="req" title="wymagane">*</span></label>
                   {% if inspection.template.area_code == "WED" %}
                   <select name="item_{{ item.id }}_nc-0-location">
                     <option value="">— wybierz lokalizację —</option>
@@ -151,18 +153,18 @@
                   {% endif %}
                 </div>
                 <div class="field">
-                  <label>Osoba odpowiedzialna za niezgodność</label>
+                  <label>Osoba odpowiedzialna za niezgodność <span class="req" title="wymagane">*</span></label>
                   <select name="item_{{ item.id }}_nc-0-responsible" class="responsible-select">
                     <option value="">— wybierz osobę odpowiedzialną —</option>
                   </select>
                 </div>
               </div>
               <div class="field">
-                <label>Opis niezgodności</label>
+                <label>Opis niezgodności <span class="req" title="wymagane">*</span></label>
                 <textarea name="item_{{ item.id }}_nc-0-description" rows="2" class="description-field" placeholder="Co konkretnie jest niezgodne i gdzie?"></textarea>
               </div>
               <div class="field">
-                <label>Zdjęcia niezgodności</label>
+                <label>Zdjęcia niezgodności <span class="muted">(opcjonalnie)</span></label>
                 <input type="file" name="item_{{ item.id }}_nc-0-photos" class="photo-input" data-item-id="{{ item.id }}" accept="image/*" multiple capture="environment">
                 <button type="button" class="btn btn-outline btn-sm suggest-ai-btn" data-item-id="{{ item.id }}" style="margin-top:.5rem;">✨ Podpowiedz opis (AI)</button>
                 <button type="button" class="btn btn-outline btn-sm move-nc-btn" style="margin-top:.5rem;" title="Niezgodność wpisana w złym miejscu - przenieś ją razem z opisem i zdjęciami">↪ Przenieś do innego punktu</button>
@@ -201,7 +203,7 @@
             </select>
           </div>
           <div class="field">
-            <label>Lokalizacja / miejsce</label>
+            <label>Lokalizacja / miejsce <span class="req" title="wymagane">*</span></label>
             {% if inspection.template.area_code == "WED" %}
             <select name="extra-{{ forloop.counter0 }}-location">
               <option value="">— wybierz lokalizację —</option>
@@ -213,18 +215,18 @@
           </div>
         </div>
         <div class="field">
-          <label>Opis niezgodności</label>
+          <label>Opis niezgodności <span class="req" title="wymagane">*</span></label>
           <textarea name="extra-{{ forloop.counter0 }}-description" rows="2" class="description-field">{{ nc.description }}</textarea>
         </div>
         <div class="field-row">
           <div class="field">
-            <label>Osoba odpowiedzialna za niezgodność</label>
+            <label>Osoba odpowiedzialna za niezgodność <span class="req" title="wymagane">*</span></label>
             <select name="extra-{{ forloop.counter0 }}-responsible" class="responsible-select" data-selected="{{ nc.responsible_person_id|default:'' }}">
               <option value="">— wybierz osobę odpowiedzialną —</option>
             </select>
           </div>
           <div class="field">
-            <label>Zdjęcia</label>
+            <label>Zdjęcia <span class="muted">(opcjonalnie)</span></label>
             {% if nc.photos.all %}
             <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem;">
               {% for p in nc.photos.all %}<span class="existing-photo"><a href="{{ p.image.url }}" target="_blank"><img src="{{ p.image.url }}" style="height:70px;border-radius:6px;object-fit:cover;"></a>{% if p.kind == "NIEZGODNOSC" or user.is_admin_role %}<button type="button" class="photo-thumb-remove existing-photo-remove" data-photo-id="{{ p.pk }}" title="Usuń to zdjęcie (np. pomyłka)">✕</button>{% endif %}</span>{% endfor %}
@@ -253,7 +255,7 @@
           </select>
         </div>
         <div class="field">
-          <label>Lokalizacja / miejsce</label>
+          <label>Lokalizacja / miejsce <span class="req" title="wymagane">*</span></label>
           {% if inspection.template.area_code == "WED" %}
           <select name="extra-__prefix__-location">
             <option value="">— wybierz lokalizację —</option>
@@ -265,18 +267,18 @@
         </div>
       </div>
       <div class="field">
-        <label>Opis niezgodności</label>
+        <label>Opis niezgodności <span class="req" title="wymagane">*</span></label>
         <textarea name="extra-__prefix__-description" rows="2" class="description-field"></textarea>
       </div>
       <div class="field-row">
         <div class="field">
-          <label>Osoba odpowiedzialna za niezgodność</label>
+          <label>Osoba odpowiedzialna za niezgodność <span class="req" title="wymagane">*</span></label>
           <select name="extra-__prefix__-responsible" class="responsible-select">
             <option value="">— wybierz osobę odpowiedzialną —</option>
           </select>
         </div>
         <div class="field">
-          <label>Zdjęcia</label>
+          <label>Zdjęcia <span class="muted">(opcjonalnie)</span></label>
           <input type="file" name="extra-__prefix__-photos" class="photo-input" accept="image/*" multiple capture="environment">
         </div>
       </div>
@@ -289,7 +291,7 @@
       <input type="hidden" name="item___ITEMID___nc-__prefix__-id" value="">
       <div class="field-row">
         <div class="field">
-          <label>Lokalizacja / miejsce</label>
+          <label>Lokalizacja / miejsce <span class="req" title="wymagane">*</span></label>
           {% if inspection.template.area_code == "WED" %}
           <select name="item___ITEMID___nc-__prefix__-location">
             <option value="">— wybierz lokalizację —</option>
@@ -300,18 +302,18 @@
           {% endif %}
         </div>
         <div class="field">
-          <label>Osoba odpowiedzialna za niezgodność</label>
+          <label>Osoba odpowiedzialna za niezgodność <span class="req" title="wymagane">*</span></label>
           <select name="item___ITEMID___nc-__prefix__-responsible" class="responsible-select">
             <option value="">— wybierz osobę odpowiedzialną —</option>
           </select>
         </div>
       </div>
       <div class="field">
-        <label>Opis niezgodności</label>
+        <label>Opis niezgodności <span class="req" title="wymagane">*</span></label>
         <textarea name="item___ITEMID___nc-__prefix__-description" rows="2" class="description-field" placeholder="Co konkretnie jest niezgodne i gdzie?"></textarea>
       </div>
       <div class="field">
-        <label>Zdjęcia niezgodności</label>
+        <label>Zdjęcia niezgodności <span class="muted">(opcjonalnie)</span></label>
         <input type="file" name="item___ITEMID___nc-__prefix__-photos" class="photo-input" accept="image/*" multiple capture="environment">
         <button type="button" class="btn btn-outline btn-sm suggest-ai-btn" style="margin-top:.5rem;">✨ Podpowiedz opis (AI)</button>
                 <button type="button" class="btn btn-outline btn-sm move-nc-btn" style="margin-top:.5rem;" title="Niezgodność wpisana w złym miejscu - przenieś ją razem z opisem i zdjęciami">↪ Przenieś do innego punktu</button>

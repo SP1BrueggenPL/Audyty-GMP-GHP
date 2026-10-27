@@ -125,6 +125,69 @@ def _create_extra_nc(inspection, department, area_rep_text, all_items, item_id, 
     )
 
 
+def _missing_required_labels(description, location, responsible):
+    """Wymagane pola niezgodności: lokalizacja, osoba odpowiedzialna, opis (zdjęcie jest opcjonalne).
+    Opis zastępczy (niezgodność utworzona od samego zdjęcia) liczy się jako brak opisu."""
+    missing = []
+    if not location:
+        missing.append("lokalizacja")
+    if not responsible:
+        missing.append("osoba odpowiedzialna")
+    if not description or description == NC_PLACEHOLDER_DESCRIPTION:
+        missing.append("opis")
+    return missing
+
+
+def _missing_required_nc_fields(post, sections):
+    """Lista komunikatów o brakujących wymaganych polach niezgodności w wysyłanym formularzu.
+    Sprawdzane tylko przy zapisie końcowym (autozapis wersji roboczej nie wymaga kompletności).
+    Dla punktu z wynikiem NC pierwsza niezgodność jest zawsze wymagana; dodatkowe bloki
+    (przycisk "+") i niezgodności "dodatkowe" - tylko jeśli ktokolwiek zaczął je wypełniać."""
+    problems = []
+    for section in sections:
+        for subsection in section.subsections.all():
+            for item in subsection.items.all():
+                if post.get(f"item_{item.id}_result", ItemResult.OK) != ItemResult.NC:
+                    continue
+                total = int(post.get(f"item_{item.id}_nc-TOTAL_FORMS", 0) or 0)
+                for i in range(max(total, 1)):
+                    prefix = f"item_{item.id}_nc-{i}-"
+                    description = post.get(prefix + "description", "").strip()
+                    location = post.get(prefix + "location", "").strip()
+                    responsible = post.get(prefix + "responsible", "")
+                    started = description or location or responsible or post.get(prefix + "id")
+                    if i > 0 and not started:
+                        continue
+                    missing = _missing_required_labels(description, location, responsible)
+                    if missing:
+                        label = f"Punkt {item.number}" + (f" (niezgodność {i + 1})" if total > 1 else "")
+                        problems.append(f"{label}: brak {', '.join(missing)}")
+    for i in range(int(post.get("extra-TOTAL_FORMS", 0) or 0)):
+        prefix = f"extra-{i}-"
+        description = post.get(prefix + "description", "").strip()
+        location = post.get(prefix + "location", "").strip()
+        responsible = post.get(prefix + "responsible", "")
+        if not (description or location or responsible or post.get(prefix + "id")):
+            continue
+        missing = _missing_required_labels(description, location, responsible)
+        if missing:
+            problems.append(f"Dodatkowa niezgodność {i + 1}: brak {', '.join(missing)}")
+    return problems
+
+
+def _flash_missing_required(request, problems, saved_as_draft):
+    head = (
+        "Inspekcja NIE została zakończona (zapisano wersję roboczą) - uzupełnij wymagane pola niezgodności"
+        if saved_as_draft else
+        "Nie zapisano zmian - uzupełnij wymagane pola niezgodności"
+    )
+    messages.error(request, f"{head} (lokalizacja, osoba odpowiedzialna, opis; zdjęcie jest opcjonalne):")
+    for line in problems[:15]:
+        messages.error(request, line)
+    if len(problems) > 15:
+        messages.error(request, f"…i {len(problems) - 15} kolejnych.")
+
+
 def _recalculate_section_points(inspection):
     """Punkty sekcji: każda niezgodność na punkcie checklisty odlicza wagę tego punktu,
     chyba że jest przypisana do osoby z rolą "Użytkownik obszaru" (patrz nc_deducts_points).
@@ -419,12 +482,19 @@ def inspection_edit(request, pk):
     if request.method == "POST":
         autosave = request.POST.get("autosave") == "1"
         form = InspectionAdminEditForm(request.POST, instance=inspection)
-        if form.is_valid():
+        missing_required = [] if autosave else _missing_required_nc_fields(request.POST, sections)
+        if missing_required and not was_draft:
+            # Edycja zapisanej inspekcji z brakami: nic nie zapisujemy, pokazujemy błędy.
+            _flash_missing_required(request, missing_required, saved_as_draft=False)
+            form = InspectionAdminEditForm(instance=inspection, initial={
+                "inspected_at": timezone.localtime(inspection.inspected_at).strftime("%Y-%m-%dT%H:%M"),
+            })
+        elif form.is_valid():
             item_nc_ids = {}
             extra_nc_ids = {}
             with transaction.atomic():
                 inspection = form.save(commit=False)
-                if not autosave and was_draft and inspection.status == InspectionStatus.DRAFT:
+                if not autosave and not missing_required and was_draft and inspection.status == InspectionStatus.DRAFT:
                     inspection.status = InspectionStatus.SUBMITTED
                 inspection.save()
                 department = derive_department(template.area_code, inspection.area_detail)
@@ -539,6 +609,10 @@ def inspection_edit(request, pk):
                     "item_nc_ids": item_nc_ids, "extra_nc_ids": extra_nc_ids,
                     "nonconformity_count": inspection.nonconformity_count,
                 })
+            if missing_required:
+                # Wersja robocza zapisana (nic nie przepadło), ale NIE zakończona.
+                _flash_missing_required(request, missing_required, saved_as_draft=True)
+                return redirect("inspection_edit", pk=inspection.pk)
             messages.success(request, "Inspekcja zakończona i zapisana." if was_draft else "Inspekcja zaktualizowana.")
             without_description = inspection.nonconformities.filter(description=NC_PLACEHOLDER_DESCRIPTION).count()
             if without_description:

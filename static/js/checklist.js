@@ -1172,6 +1172,103 @@ document.addEventListener("DOMContentLoaded", function () {
     return bad;
   }
 
+  // ---- 5) Wymagane pola niezgodności ---------------------------------------------
+  // Gdy punkt ma wynik NC, wymagane są: lokalizacja, osoba odpowiedzialna i opis (zdjęcie jest
+  // opcjonalne). Sprawdzane przy zapisie końcowym ("Zakończ inspekcję"/"Zapisz zmiany") - autozapis
+  // wersji roboczej nie wymaga kompletności, żeby nie tracić niedokończonej pracy.
+  var NC_PLACEHOLDER = "(opis do uzupełnienia)";
+
+  function validateRequiredNcFields() {
+    var problems = [];
+    form.querySelectorAll(".invalid-field").forEach(function (el) { el.classList.remove("invalid-field"); });
+    form.querySelectorAll(".nc-block-invalid").forEach(function (el) { el.classList.remove("nc-block-invalid"); });
+
+    function check(block, label, mustHave) {
+      var descEl = block.querySelector('textarea[name$="-description"]');
+      var locEl = block.querySelector('[name$="-location"]');
+      var respEl = block.querySelector('select[name$="-responsible"]');
+      var idEl = block.querySelector('input[type="hidden"][name$="-id"]');
+      var photoEl = block.querySelector(".photo-input");
+      var description = descEl ? descEl.value.trim() : "";
+      var location = locEl ? locEl.value.trim() : "";
+      var responsible = respEl ? respEl.value : "";
+      var started = description || location || responsible || (idEl && idEl.value) ||
+        (photoEl && photoEl._entries && photoEl._entries.length);
+      if (!mustHave && !started) return;
+      var missing = [];
+      if (!location) { missing.push("lokalizacja"); if (locEl) locEl.classList.add("invalid-field"); }
+      if (!responsible) { missing.push("osoba odpowiedzialna"); if (respEl) respEl.classList.add("invalid-field"); }
+      if (!description || description === NC_PLACEHOLDER) { missing.push("opis"); if (descEl) descEl.classList.add("invalid-field"); }
+      if (missing.length) {
+        block.classList.add("nc-block-invalid");
+        problems.push({ block: block, text: label + ": brak " + missing.join(", ") });
+      }
+    }
+
+    form.querySelectorAll(".item-row").forEach(function (row) {
+      var checked = row.querySelector('input[name="item_' + row.dataset.itemId + '_result"]:checked');
+      if (!checked || checked.value !== "NC") return;
+      var numberEl = row.querySelector(".item-number");
+      var number = numberEl ? numberEl.textContent.trim() : "";
+      var blocks = row.querySelectorAll(".item-nc-block");
+      blocks.forEach(function (block, idx) {
+        check(block, "Punkt " + number + (blocks.length > 1 ? " (niezgodność " + (idx + 1) + ")" : ""), idx === 0);
+      });
+    });
+    form.querySelectorAll(".extra-nc-block").forEach(function (block, idx) {
+      check(block, "Dodatkowa niezgodność " + (idx + 1), false);
+    });
+    return problems;
+  }
+
+  function showNcProblems(problems) {
+    var banner = document.getElementById("nc-required-banner");
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.id = "nc-required-banner";
+      banner.className = "nc-required-banner";
+      banner.setAttribute("role", "alert");
+      form.insertBefore(banner, form.firstChild);
+    }
+    banner.innerHTML = "";
+    var head = document.createElement("strong");
+    head.textContent = "Nie można zapisać - uzupełnij wymagane pola niezgodności (lokalizacja, osoba odpowiedzialna, opis; zdjęcie jest opcjonalne):";
+    var ul = document.createElement("ul");
+    problems.slice(0, 15).forEach(function (p) {
+      var li = document.createElement("li");
+      li.textContent = p.text;
+      ul.appendChild(li);
+    });
+    if (problems.length > 15) {
+      var more = document.createElement("li");
+      more.textContent = "…i " + (problems.length - 15) + " kolejnych.";
+      ul.appendChild(more);
+    }
+    banner.appendChild(head);
+    banner.appendChild(ul);
+    problems[0].block.scrollIntoView({ behavior: "smooth", block: "center" });
+    alert("Uzupełnij wymagane pola niezgodności (" + problems.length + " do poprawy):\n\n" +
+      problems.slice(0, 8).map(function (p) { return "• " + p.text; }).join("\n") +
+      (problems.length > 8 ? "\n…" : ""));
+  }
+
+  // Rejestrowany PRZED obsługą wersji roboczej, żeby przerwać zapis, zanim cokolwiek zacznie się wysyłać.
+  form.addEventListener("submit", function (e) {
+    if (form.dataset.submitReady === "1") return;
+    var problems = validateRequiredNcFields();
+    if (problems.length) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      showNcProblems(problems);
+    } else {
+      var banner = document.getElementById("nc-required-banner");
+      if (banner) banner.remove();
+    }
+  });
+
+  form.addEventListener("input", function (e) { e.target.classList.remove("invalid-field"); });
+  form.addEventListener("change", function (e) { e.target.classList.remove("invalid-field"); });
+
   if (DRAFT_MODE) {
     form.addEventListener("input", function () { scheduleAutosave(4000); });
     form.addEventListener("change", function () { scheduleAutosave(2000); });
