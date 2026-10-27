@@ -28,6 +28,7 @@ from .forms import (
     derive_department,
 )
 from .models import (
+    AreaCode,
     ChecklistItem,
     ChecklistTemplate,
     Inspection,
@@ -39,6 +40,7 @@ from .models import (
     NonConformity,
     NC_PLACEHOLDER_DESCRIPTION,
     NonConformityPhoto,
+    PhotoArchive,
     Shift,
     nc_counts_against_shift,
 )
@@ -526,6 +528,11 @@ def inspection_edit(request, pk):
             "inspected_at": timezone.localtime(inspection.inspected_at).strftime("%Y-%m-%dT%H:%M"),
         })
 
+    if template.area_code == AreaCode.MIX:
+        # Formularz Miksowanie ma w nagłówku stoły zamiast linii produkcyjnych.
+        form.fields["lines_working"].label = 'Ilość stołów "pracujących" (oraz info o rodzaju miksu - ile rodzajów FERT do jednego kartonu)'
+        form.fields["lines_not_working_cleaning"].label = "Ilość stołów niepracujących"
+
     if was_draft:
         # Nowa/robocza inspekcja: status i inspektor ustawiają się automatycznie
         # (patrz wyżej) - nie pokazujemy ich jako edytowalnych pól zwykłemu audytorowi.
@@ -634,41 +641,57 @@ def nc_photo_delete(request, pk):
     )
     if not can_delete:
         return JsonResponse({"ok": False, "error": "Brak uprawnień do usunięcia tego zdjęcia."}, status=403)
-    photo.image.delete(save=False)
+    name = photo.image.name
     photo.delete()
+    PhotoArchive.objects.filter(image=name).delete()
+    photo.image.storage.delete(name)
     return JsonResponse({"ok": True})
 
 
 @login_required
 def photo_gallery(request):
-    """Galeria wszystkich zdjęć niezgodności zapisanych w aplikacji (w zakresie działów
-    użytkownika) - niezależna od ekranu konkretnej inspekcji."""
-    nc_ids = _scoped_nonconformities(request.user).exclude(
-        inspection__status=InspectionStatus.DRAFT,
-    ).values("pk")
-    photos = NonConformityPhoto.objects.filter(nonconformity__in=nc_ids).select_related(
-        "nonconformity", "nonconformity__inspection",
-    )
+    """Galeria wszystkich zdjęć zapisanych w aplikacji (w zakresie działów użytkownika).
+    Czyta z archiwum (PhotoArchive), do którego zdjęcie trafia w chwili zapisu - czyli
+    także zdjęcia z wersji roboczych i takie, których niezgodność/inspekcję usunięto."""
+    photos = PhotoArchive.objects.select_related("nonconformity", "inspection")
+    scope = request.user.department_scope
+    if scope is not None:
+        photos = photos.filter(department__in=scope)
 
     department = request.GET.get("department", "")
     if department:
-        photos = photos.filter(nonconformity__department=department)
+        photos = photos.filter(department=department)
     year = request.GET.get("year", "")
     if year.isdigit():
-        photos = photos.filter(nonconformity__inspection_date__year=int(year))
-    photos = photos.order_by("-nonconformity__inspection_date", "-uploaded_at")
+        photos = photos.filter(inspection_date__year=int(year))
 
     page = Paginator(photos, 48).get_page(request.GET.get("page"))
-    scope = request.user.department_scope
     return render(request, "audits/photo_gallery.html", {
         "page": page,
         "current_department": department,
         "current_year": year,
         "department_choices": [(c, l) for c, l in Department.choices if scope is None or c in scope],
         "years": sorted(
-            set(NonConformity.objects.values_list("inspection_date__year", flat=True)), reverse=True,
+            {d.year for d in PhotoArchive.objects.exclude(inspection_date=None).values_list("inspection_date", flat=True)},
+            reverse=True,
         ),
+        "can_delete": request.user.is_admin_role,
     })
+
+
+@require_POST
+@login_required
+def gallery_photo_delete(request, pk):
+    """Jedyny sposób na usunięcie zdjęcia z galerii "na stałe" (administrator)."""
+    if not _require_admin(request):
+        return redirect("photo_gallery")
+    archived = get_object_or_404(PhotoArchive, pk=pk)
+    name = archived.image.name
+    NonConformityPhoto.objects.filter(image=name).delete()
+    PhotoArchive.objects.filter(image=name).delete()
+    archived.image.storage.delete(name)
+    messages.success(request, "Zdjęcie zostało usunięte z galerii i z inspekcji.")
+    return redirect(request.META.get("HTTP_REFERER") or "photo_gallery")
 
 
 @require_POST

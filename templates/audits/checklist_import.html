@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Import formularza z Excela{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Import formularza z Excela</h1>
+    <p class="muted">Wgraj wzór checklisty (plik .xlsx formularza CD-xxxx). Zawartość pliku trafia tylko do bazy aplikacji.</p>
+  </div>
+  <a href="{% url 'dashboard' %}" class="btn btn-outline btn-sm">← Wróć</a>
+</div>
+
+<div class="card">
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="field-row">
+      <div class="field">
+        <label for="area_code">Typ formularza (obszar)</label>
+        <select name="area_code" id="area_code" required>
+          <option value="">— wybierz —</option>
+          {% for value, label in area_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="file">Plik Excel (.xlsx)</label>
+        <input type="file" name="file" id="file" accept=".xlsx,.xlsm" required>
+      </div>
+    </div>
+    <p class="help-text">
+      Nowy formularz staje się aktywny, a dotychczasowy formularz tego samego typu zostaje jako nieaktywny
+      (zapisane inspekcje zachowują swoją treść i wynik). Wagi punktów ustawisz potem w edytorze checklisty.
+    </p>
+    <button type="submit" class="btn btn-primary">Importuj</button>
+  </form>
+</div>
+
+<div class="card" style="padding:0;overflow:auto;">
+  <table class="nice">
+    <thead><tr><th>Typ</th><th>Nazwa</th><th>Numer dokumentu</th><th>Zakresy</th><th>Max pkt</th><th>Aktywny</th></tr></thead>
+    <tbody>
+    {% for t in templates %}
+      <tr>
+        <td>{{ t.get_area_code_display }}</td><td>{{ t.name }}</td><td>{{ t.document_code }}</td>
+        <td>{{ t.sections.count }}</td><td>{{ t.max_points_total }}</td><td>{% if t.is_active %}tak{% else %}nie{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -56,7 +56,9 @@
     <div class="field-row">
       <div class="field">{{ form.lines_working.label_tag }}{{ form.lines_working }}</div>
       <div class="field">{{ form.lines_not_working_cleaning.label_tag }}{{ form.lines_not_working_cleaning }}</div>
+      {% if inspection.template.area_code != "MIX" %}
       <div class="field">{{ form.lines_not_working_stopped.label_tag }}{{ form.lines_not_working_stopped }}</div>
+      {% endif %}
     </div>
     <div class="field">
       {{ form.rooms_checked.label_tag }}

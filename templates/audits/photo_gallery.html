@@ -31,13 +31,20 @@
     {% for p in page.object_list %}
     <div class="gallery-item">
       <a href="{{ p.image.url }}" class="lightbox-link" data-lightbox="gallery"
-         data-caption="{{ p.nonconformity.number }} · {{ p.nonconformity.checklist_point_label }} · {{ p.nonconformity.inspection_date|date:'d.m.Y' }}">
-        <img src="{{ p.image.url }}" loading="lazy" alt="Zdjęcie niezgodności {{ p.nonconformity.number }}">
+         data-caption="{{ p.nc_number|default:'bez niezgodności' }} · {{ p.point_label }} · {{ p.inspection_date|date:'d.m.Y' }}">
+        <img src="{{ p.image.url }}" loading="lazy" alt="Zdjęcie niezgodności {{ p.nc_number }}">
       </a>
       <div class="gallery-meta">
-        <a href="{% url 'nonconformity_detail' p.nonconformity.pk %}"><strong>{{ p.nonconformity.number }}</strong></a><br>
-        {{ p.nonconformity.inspection_date|date:"d.m.Y" }} · {{ p.nonconformity.department }}
+        {% if p.nonconformity_id %}<a href="{% url 'nonconformity_detail' p.nonconformity_id %}"><strong>{{ p.nc_number }}</strong></a>
+        {% else %}<strong>{{ p.nc_number|default:"—" }}</strong> <span class="muted">(niezgodność usunięta)</span>{% endif %}<br>
+        {{ p.inspection_date|date:"d.m.Y" }} · {{ p.department }}
+        {% if p.inspection and p.inspection.status == "DRAFT" %}<br><span class="muted">wersja robocza</span>{% endif %}
         {% if p.kind == "DOWOD" %}<br><span class="muted">dowód działań</span>{% endif %}
+        {% if can_delete %}
+        <form method="post" action="{% url 'gallery_photo_delete' p.pk %}" onsubmit="return confirm('Usunąć to zdjęcie na stałe z galerii i z inspekcji?');" style="margin-top:.3rem;">
+          {% csrf_token %}<button type="submit" class="btn btn-outline btn-sm" style="padding:.1rem .4rem;font-size:.7rem;">🗑 Usuń</button>
+        </form>
+        {% endif %}
       </div>
     </div>
     {% endfor %}

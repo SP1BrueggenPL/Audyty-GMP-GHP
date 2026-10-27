@@ -10,7 +10,8 @@ from django.contrib.auth.decorators import login_required
 from django.forms import inlineformset_factory
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .models import ChecklistItem, ChecklistSection, ChecklistSubsection, ChecklistTemplate
+from .checklist_import import ChecklistImportError, import_template
+from .models import AreaCode, ChecklistItem, ChecklistSection, ChecklistSubsection, ChecklistTemplate
 
 
 def _require_admin_role(request):
@@ -122,4 +123,48 @@ def checklist_subsection_edit(request, pk):
     return render(request, "audits/checklist_subsection_edit.html", {
         "subsection": subsection,
         "formset": formset,
+    })
+
+
+MAX_IMPORT_BYTES = 25 * 1024 * 1024
+
+
+@login_required
+def checklist_import(request):
+    """Wgranie wzoru checklisty z pliku Excel (CD-xxxx). Nowy szablon staje się aktywny,
+    a dotychczasowe szablony tego obszaru zostają jako nieaktywne (historia inspekcji
+    wskazuje na nie, więc nie wolno ich kasować)."""
+    if not _require_admin_role(request):
+        return redirect("dashboard")
+
+    if request.method == "POST":
+        area_code = request.POST.get("area_code", "")
+        upload = request.FILES.get("file")
+        if area_code not in AreaCode.values:
+            messages.error(request, "Wybierz obszar (typ formularza).")
+        elif not upload:
+            messages.error(request, "Wybierz plik Excel (.xlsx) z wzorem formularza.")
+        elif not upload.name.lower().endswith((".xlsx", ".xlsm")):
+            messages.error(request, "Obsługiwane są tylko pliki .xlsx / .xlsm.")
+        elif upload.size > MAX_IMPORT_BYTES:
+            messages.error(request, "Plik jest za duży (limit 25 MB).")
+        else:
+            try:
+                template, items = import_template(
+                    upload, area_code, version_note=f"import z pliku {upload.name}", existing="deactivate",
+                )
+            except ChecklistImportError as exc:
+                messages.error(request, f"Import nie powiódł się: {exc}")
+            else:
+                messages.success(
+                    request,
+                    f"Zaimportowano „{template.name}” ({template.document_code}): "
+                    f"{template.sections.count()} zakresów, {items} punktów, max {template.max_points_total} pkt. "
+                    "Sprawdź treść w edytorze checklisty.",
+                )
+                return redirect("checklist_template_edit", pk=template.pk)
+
+    return render(request, "audits/checklist_import.html", {
+        "area_choices": AreaCode.choices,
+        "templates": ChecklistTemplate.objects.order_by("area_code", "-created_at"),
     })

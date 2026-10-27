@@ -355,6 +355,11 @@ class NonConformity(models.Model):
                     seq = NonConformity.objects.filter(inspection_date__year=year).count() + 1
             self.number = f"{year}-{seq:04d}"
         super().save(*args, **kwargs)
+        if self.pk:
+            PhotoArchive.objects.filter(nonconformity=self).update(
+                nc_number=self.number, point_label=self.checklist_point_label,
+                department=self.department, inspection_date=self.inspection_date,
+            )
 
     @property
     def period(self):
@@ -406,3 +411,43 @@ class NonConformityPhoto(models.Model):
 
     def __str__(self):
         return f"Zdjęcie {self.get_kind_display()} - {self.nonconformity.number}"
+
+    def save(self, *args, **kwargs):
+        adding = self._state.adding
+        super().save(*args, **kwargs)
+        if adding:
+            nc = self.nonconformity
+            PhotoArchive.objects.create(
+                image=self.image.name, nonconformity=nc, inspection_id=nc.inspection_id,
+                nc_number=nc.number, point_label=nc.checklist_point_label, department=nc.department,
+                inspection_date=nc.inspection_date, kind=self.kind,
+            )
+
+
+class PhotoArchive(models.Model):
+    """Galeria zdjęć w aplikacji - niezależna od cyklu życia niezgodności/inspekcji.
+    Wpis powstaje w chwili zapisu każdego zdjęcia (także w wersji roboczej) i wskazuje
+    TEN SAM plik co NonConformityPhoto (bez kopii). Usunięcie niezgodności albo
+    inspekcji nie kasuje wpisu ani pliku - zdjęcie znika z galerii dopiero po jawnym
+    usunięciu (przycisk przy zdjęciu w wersji roboczej albo przez administratora)."""
+    image = models.ImageField(max_length=255)
+    nonconformity = models.ForeignKey(
+        NonConformity, on_delete=models.SET_NULL, null=True, blank=True, related_name="archived_photos",
+    )
+    inspection = models.ForeignKey(
+        Inspection, on_delete=models.SET_NULL, null=True, blank=True, related_name="archived_photos",
+    )
+    nc_number = models.CharField(max_length=30, blank=True)
+    point_label = models.CharField(max_length=30, blank=True)
+    department = models.CharField(max_length=10, choices=Department.choices, blank=True)
+    inspection_date = models.DateField(null=True, blank=True)
+    kind = models.CharField(max_length=15, choices=NCPhotoKind.choices, default=NCPhotoKind.NIEZGODNOSC)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-uploaded_at"]
+        verbose_name = "Zdjęcie w galerii"
+        verbose_name_plural = "Galeria zdjęć"
+
+    def __str__(self):
+        return f"{self.nc_number or 'bez niezgodności'} - {self.image.name}"
