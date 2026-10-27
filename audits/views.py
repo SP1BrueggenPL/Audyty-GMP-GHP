@@ -242,15 +242,15 @@ def _ordered_nonconformities(qs):
 
 def _my_open_tasks(user):
     """Sekcja "Zadania" na panelu: niezgodności przypisane do użytkownika (jak dotychczas),
-    dla użytkownika zmianowego także niezgodności jego zmiany, a dla audytora dodatkowo jego
+    dla użytkownika zmianowego także niezgodności jego zmiany, a dla audytora dodatkowo WSZYSTKIE
     niezgodności ze statusem "W toku" - użytkownik zmiany zaczął nad nimi pracę."""
     query = Q(responsible_person=user)
     if user.is_shift_user:
         query |= Q(shift=user.shift)
     if user.can_run_inspections:
-        query |= Q(inspector=user, status=NCStatus.W_TOKU)
+        query |= Q(status=NCStatus.W_TOKU)
     open_ncs = NonConformity.objects.filter(query).exclude(status=NCStatus.WDROZONE)
-    return list(open_ncs.select_related("responsible_person").order_by("-updated_at")[:10])
+    return list(open_ncs.select_related("responsible_person").order_by("-updated_at")[:50])
 
 
 @login_required
