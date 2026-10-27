@@ -54,9 +54,6 @@
     <p class="muted">Brak zdefiniowanych szablonów checklist — dodaj je w panelu admina.</p>
     {% endfor %}
   </div>
-  {% if user.is_admin_role %}
-  <p style="margin:1rem 0 0;"><a href="{% url 'checklist_import' %}" class="btn btn-outline btn-sm">⬆ Importuj formularz z Excela</a></p>
-  {% endif %}
 </div>
 {% endif %}
 
