@@ -93,7 +93,7 @@
         <button type="submit" class="btn btn-primary btn-sm">Zapisz działania</button>
       </form>
       {% else %}
-        <p class="muted">Tylko {{ nc.responsible_person }} lub administrator może uzupełnić tę część.</p>
+        <p class="muted">Tylko {{ nc.responsible_person }}, osoby z tej samej zmiany ({{ nc.shift }}) lub administrator mogą uzupełnić tę część.</p>
       {% endif %}
 
       {% if nc.root_cause %}

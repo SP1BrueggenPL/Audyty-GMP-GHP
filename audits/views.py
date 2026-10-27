@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Case, Count, ProtectedError, When
+from django.db.models import Case, Count, ProtectedError, Q, When
 from django.core.paginator import Paginator
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -53,9 +53,21 @@ User = get_user_model()
 def _scoped_nonconformities(user):
     qs = NonConformity.objects.select_related("inspector", "responsible_person")
     scope = user.department_scope
-    if scope is not None:
-        qs = qs.filter(department__in=scope)
-    return qs
+    if scope is None:
+        return qs
+    query = Q(department__in=scope) | Q(responsible_person=user)
+    if user.is_shift_user:
+        # Zespół zmiany: niezgodności swojej zmiany (w obrębie działów użytkownika, o ile je ma).
+        shift_query = Q(shift=user.shift)
+        if scope:
+            shift_query &= Q(department__in=scope)
+        query |= shift_query
+    return qs.filter(query)
+
+
+def _user_on_nc_shift(user, nc):
+    """Czy użytkownik pracuje na tej samej zmianie, do której przypisana jest niezgodność."""
+    return bool(user.shift) and nc.shift == user.shift
 
 
 def _scoped_inspections(user):
@@ -67,6 +79,13 @@ def _scoped_inspections(user):
     scope = user.department_scope
     if scope is None:
         return qs
+    if user.is_shift_user:
+        # Użytkownik zmianowy widzi wszystkie inspekcje swojej zmiany (w obrębie swoich działów,
+        # o ile je ma), niezależnie od tego, kto z tej zmiany był na inspekcji przypisany.
+        return [
+            i for i in qs.filter(shift=user.shift)
+            if not scope or derive_department(i.template.area_code, i.area_detail) in scope
+        ]
     return [i for i in qs if derive_department(i.template.area_code, i.area_detail) in scope]
 
 
@@ -221,6 +240,19 @@ def _ordered_nonconformities(qs):
     )
 
 
+def _my_open_tasks(user):
+    """Sekcja "Zadania" na panelu: niezgodności przypisane do użytkownika (jak dotychczas),
+    dla użytkownika zmianowego także niezgodności jego zmiany, a dla audytora dodatkowo jego
+    niezgodności ze statusem "W toku" - użytkownik zmiany zaczął nad nimi pracę."""
+    query = Q(responsible_person=user)
+    if user.is_shift_user:
+        query |= Q(shift=user.shift)
+    if user.can_run_inspections:
+        query |= Q(inspector=user, status=NCStatus.W_TOKU)
+    open_ncs = NonConformity.objects.filter(query).exclude(status=NCStatus.WDROZONE)
+    return list(open_ncs.select_related("responsible_person").order_by("-updated_at")[:10])
+
+
 @login_required
 def dashboard(request):
     today = timezone.localdate()
@@ -245,9 +277,7 @@ def dashboard(request):
         "recent_inspections": sorted(
             _scoped_inspections(request.user), key=lambda i: i.inspected_at, reverse=True,
         )[:8],
-        "my_open_tasks": NonConformity.objects.filter(
-            responsible_person=request.user,
-        ).exclude(status=NCStatus.WDROZONE)[:10],
+        "my_open_tasks": _my_open_tasks(request.user),
         "templates": ChecklistTemplate.objects.filter(is_active=True),
         "my_drafts_count": (
             Inspection.objects.filter(inspector=request.user, status=InspectionStatus.DRAFT).count()
@@ -424,8 +454,8 @@ def inspection_new(request, template_id):
 
 @login_required
 def inspection_list(request):
-    if not request.user.can_run_inspections:
-        messages.error(request, "Rejestr inspekcji jest dostępny dla Audytora, QualityAdmin i Helpdesku.")
+    if not (request.user.can_run_inspections or request.user.is_shift_user):
+        messages.error(request, "Rejestr inspekcji jest dostępny dla Audytora, QualityAdmin, Helpdesku i użytkowników zmianowych.")
         return redirect("dashboard")
 
     inspections = _scoped_inspections(request.user)
@@ -972,6 +1002,10 @@ def nonconformity_list(request):
         "current_status": status or "",
         "current_department": department or "",
         "current_scope": scope or "",
+        "department_choices": [
+            (c, l) for c, l in Department.choices
+            if request.user.department_scope is None or c in request.user.department_scope
+        ],
     })
 
 
@@ -979,7 +1013,10 @@ def nonconformity_list(request):
 def nonconformity_detail(request, pk):
     nc = get_object_or_404(NonConformity.objects.select_related("inspector", "responsible_person", "inspection"), pk=pk)
     is_admin = request.user.is_admin_role
-    can_edit_responsible = request.user == nc.responsible_person or is_admin or request.user.is_staff
+    can_edit_responsible = (
+        request.user == nc.responsible_person or _user_on_nc_shift(request.user, nc)
+        or is_admin or request.user.is_staff
+    )
     can_edit_auditor = request.user == nc.inspector or is_admin or request.user.is_staff
 
     if request.method == "POST":
@@ -987,9 +1024,15 @@ def nonconformity_detail(request, pk):
         if action == "save_responsible" and can_edit_responsible:
             form = ResponsibleActionForm(request.POST, instance=nc)
             if form.is_valid():
-                form.save()
-                for photo in request.FILES.getlist("evidence_photos"):
+                nc = form.save()
+                evidence = request.FILES.getlist("evidence_photos")
+                for photo in evidence:
                     NonConformityPhoto.objects.create(nonconformity=nc, image=photo, kind="DOWOD")
+                # Samo otwarcie rekordu nie zmienia statusu - dopiero zapis z wpisanymi danymi.
+                entered = evidence or any(form.cleaned_data.get(f) for f in form.fields)
+                if nc.status == NCStatus.ZAREJESTROWANA and entered:
+                    nc.status = NCStatus.W_TOKU
+                    nc.save(update_fields=["status", "updated_at"])
                 messages.success(request, "Działania zapisane. Dziękujemy za uzupełnienie.")
                 return redirect("nonconformity_detail", pk=nc.pk)
         elif action == "save_auditor" and can_edit_auditor:

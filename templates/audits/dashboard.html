@@ -86,6 +86,7 @@
     {% for nc in my_open_tasks %}
       <div style="padding:.6rem 0;border-top:1px solid var(--border);">
         <a href="{% url 'nonconformity_detail' nc.pk %}"><strong>{{ nc.number }}</strong> · {{ nc.get_department_display }}</a>
+        <span class="badge badge-{{ nc.status|lower }}" style="margin-left:.4rem;">{{ nc.get_status_display }}</span>
         <div class="muted">{{ nc.description|truncatechars:70 }}</div>
       </div>
     {% empty %}

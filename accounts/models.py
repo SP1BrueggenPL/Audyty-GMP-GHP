@@ -110,6 +110,12 @@ class User(AbstractUser):
         return self.is_superuser or self.role in ROLES_WITH_FULL_ACCESS
 
     @property
+    def is_shift_user(self):
+        """Użytkownik zmianowy: ma przypisaną zmianę i nie jest audytorem/administratorem.
+        Pracuje w zespole swojej zmiany - widzi inspekcje i niezgodności tej zmiany."""
+        return bool(self.shift) and not self.has_full_access
+
+    @property
     def can_run_inspections(self):
         return self.is_superuser or self.role in {Role.ADMIN, Role.HELPDESK, Role.AUDYTOR}
 

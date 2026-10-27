@@ -30,7 +30,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         now = timezone.now()
-        open_ncs = NonConformity.objects.filter(status=NCStatus.W_TOKU).exclude(responsible_person__isnull=True)
+        open_ncs = NonConformity.objects.filter(status__in=[NCStatus.ZAREJESTROWANA, NCStatus.W_TOKU]).exclude(responsible_person__isnull=True)
 
         reminded, escalated = 0, 0
 

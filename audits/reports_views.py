@@ -143,7 +143,7 @@ def _build_overview_tab(qs, year):
     deltas = [d for d in deltas if d >= 0]
     avg_days_to_close = round(sum(deltas) / len(deltas), 1) if deltas else None
 
-    overdue_count = len([nc for nc in qs.filter(status=NCStatus.W_TOKU) if nc.is_due_for_reminder])
+    overdue_count = len([nc for nc in qs.filter(status__in=[NCStatus.ZAREJESTROWANA, NCStatus.W_TOKU]) if nc.is_due_for_reminder])
 
     inspections = list(Inspection.objects.filter(inspected_at__year=year).select_related("template"))
     score_by_month = defaultdict(list)

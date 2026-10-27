@@ -273,7 +273,8 @@ input:focus, select:focus, textarea:focus {
 }
 
 .badge-w_toku { background: var(--gold); color: var(--claret); }
-.badge-wdrozone { background: var(--steel); color: var(--white); }
+.badge-zarejestrowana { background: var(--pink); color: var(--white); }
+.badge-wdrozone { background: var(--green); color: var(--white); }
 .badge-anulowane { background: var(--border); color: var(--charcoal); }
 .badge-overdue { background: var(--coral); color: var(--white); }
 .badge-draft { background: var(--border); color: var(--charcoal); }
@@ -310,6 +311,7 @@ table.nice td {
 
 table.nice tr:last-child td { border-bottom: none; }
 table.nice tr.row-overdue { background: #FFF1F1; }
+table.nice tr.row-implemented { background: var(--green-tint); }
 table.nice tr:hover { background: #FBEFEA; }
 
 /* ---------- Checklist ---------- */

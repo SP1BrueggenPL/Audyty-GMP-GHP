@@ -276,6 +276,7 @@ class InspectionItemResult(models.Model):
 # ---------------------------------------------------------------------------
 
 class NCStatus(models.TextChoices):
+    ZAREJESTROWANA = "ZAREJESTROWANA", "Zarejestrowana"
     W_TOKU = "W_TOKU", "W toku"
     WDROZONE = "WDROZONE", "Wdrożone"
     ANULOWANE = "ANULOWANE", "Anulowane"
@@ -330,7 +331,7 @@ class NonConformity(models.Model):
     actual_preventive_date = models.DateField(null=True, blank=True, verbose_name="Faktyczna data wprowadzenia działań korygujących")
 
     # Wypełnia audytor
-    status = models.CharField(max_length=10, choices=NCStatus.choices, default=NCStatus.W_TOKU, verbose_name="Status działań")
+    status = models.CharField(max_length=20, choices=NCStatus.choices, default=NCStatus.ZAREJESTROWANA, verbose_name="Status działań")
     auditor_comment = models.TextField(blank=True, verbose_name="Uwagi audytora / inne")
 
     reminder_count = models.PositiveSmallIntegerField(default=0)
@@ -384,15 +385,20 @@ class NonConformity(models.Model):
         return (timezone.localdate() - self.entry_date).days
 
     @property
+    def is_awaiting_action(self):
+        """Niezgodność czeka na działania osoby odpowiedzialnej (Zarejestrowana albo W toku)."""
+        return self.status in (NCStatus.ZAREJESTROWANA, NCStatus.W_TOKU)
+
+    @property
     def is_due_for_reminder(self):
-        if self.status != NCStatus.W_TOKU or self.is_responsible_part_filled:
+        if not self.is_awaiting_action or self.is_responsible_part_filled:
             return False
         days = self.days_open or 0
         return days >= settings.NC_REMINDER_AFTER_DAYS
 
     @property
     def is_due_for_escalation(self):
-        if self.status != NCStatus.W_TOKU or self.is_responsible_part_filled:
+        if not self.is_awaiting_action or self.is_responsible_part_filled:
             return False
         days = self.days_open or 0
         return days >= settings.NC_ESCALATION_AFTER_DAYS and not self.escalated_at
