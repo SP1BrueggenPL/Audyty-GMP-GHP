@@ -22,8 +22,9 @@
 </div>
 {% endif %}
 
-<form method="post" enctype="multipart/form-data" id="inspection-form" data-users-url="{% url 'users_by_shift' %}" data-suggest-url="{% url 'suggest_nonconformity' %}" data-area-code="{{ inspection.template.area_code }}" data-preselected-reps="{{ area_rep_ids_csv }}" {% if is_draft %}data-autosave="1"{% endif %}>
+<form method="post" enctype="multipart/form-data" id="inspection-form" data-users-url="{% url 'users_by_shift' %}" data-suggest-url="{% url 'suggest_nonconformity' %}" data-area-code="{{ inspection.template.area_code }}" data-preselected-reps="{{ area_rep_ids_csv }}" {% if is_draft %}data-autosave="1" data-upload-url="{% url 'inspection_photo_upload' inspection.pk %}" data-photo-delete-url="{% url 'nc_photo_delete' 0 %}"{% endif %}>
   {% csrf_token %}
+  <input type="hidden" name="delete_nc_ids" id="delete-nc-ids" value="">
 
   <div class="card">
     <h2 style="font-size:1.05rem;">Dane inspekcji</h2>
@@ -125,7 +126,7 @@
                   {% for p in nc.photos.all %}<a href="{{ p.image.url }}" target="_blank"><img src="{{ p.image.url }}" style="height:70px;border-radius:6px;object-fit:cover;"></a>{% endfor %}
                 </div>
                 {% endif %}
-                <input type="file" name="item_{{ item.id }}_nc-{{ forloop.counter0 }}-photos" class="photo-input" data-item-id="{{ item.id }}" accept="image/*" multiple capture="environment">
+                <input type="file" name="item_{{ item.id }}_nc-{{ forloop.counter0 }}-photos" class="photo-input" data-existing-photos="{{ nc.photos.all|length }}" data-item-id="{{ item.id }}" accept="image/*" multiple capture="environment">
                 <button type="button" class="btn btn-outline btn-sm suggest-ai-btn" data-item-id="{{ item.id }}" style="margin-top:.5rem;">✨ Podpowiedz opis (AI)</button>
                 <span class="ai-status muted" data-item-id="{{ item.id }}" style="margin-left:.5rem;"></span>
               </div>
@@ -133,6 +134,7 @@
             </div>
             {% empty %}
             <div class="item-nc-block">
+              <input type="hidden" name="item_{{ item.id }}_nc-0-id" value="">
               <div class="field-row">
                 <div class="field">
                   <label>Lokalizacja / miejsce</label>
@@ -208,7 +210,7 @@
         </div>
         <div class="field">
           <label>Opis niezgodności</label>
-          <textarea name="extra-{{ forloop.counter0 }}-description" rows="2">{{ nc.description }}</textarea>
+          <textarea name="extra-{{ forloop.counter0 }}-description" rows="2" class="description-field">{{ nc.description }}</textarea>
         </div>
         <div class="field-row">
           <div class="field">
@@ -224,7 +226,7 @@
               {% for p in nc.photos.all %}<a href="{{ p.image.url }}" target="_blank"><img src="{{ p.image.url }}" style="height:70px;border-radius:6px;object-fit:cover;"></a>{% endfor %}
             </div>
             {% endif %}
-            <input type="file" name="extra-{{ forloop.counter0 }}-photos" accept="image/*" multiple capture="environment">
+            <input type="file" name="extra-{{ forloop.counter0 }}-photos" class="photo-input" data-existing-photos="{{ nc.photos.all|length }}" accept="image/*" multiple capture="environment">
           </div>
         </div>
         <button type="button" class="btn btn-outline btn-sm remove-item-nc" style="margin-top:.5rem;">🗑 Usuń tę niezgodność</button>
@@ -237,6 +239,7 @@
 
   <template id="extra-nc-template">
     <div class="extra-nc-block">
+      <input type="hidden" name="extra-__prefix__-id" value="">
       <div class="field-row">
         <div class="field">
           <label>Punkt checklisty (opcjonalnie)</label>
@@ -259,7 +262,7 @@
       </div>
       <div class="field">
         <label>Opis niezgodności</label>
-        <textarea name="extra-__prefix__-description" rows="2"></textarea>
+        <textarea name="extra-__prefix__-description" rows="2" class="description-field"></textarea>
       </div>
       <div class="field-row">
         <div class="field">
@@ -270,7 +273,7 @@
         </div>
         <div class="field">
           <label>Zdjęcia</label>
-          <input type="file" name="extra-__prefix__-photos" accept="image/*" multiple capture="environment">
+          <input type="file" name="extra-__prefix__-photos" class="photo-input" accept="image/*" multiple capture="environment">
         </div>
       </div>
       <button type="button" class="btn btn-outline btn-sm remove-item-nc" style="margin-top:.5rem;">🗑 Usuń tę niezgodność</button>
@@ -279,6 +282,7 @@
 
   <template id="item-extra-nc-template">
     <div class="item-nc-block">
+      <input type="hidden" name="item___ITEMID___nc-__prefix__-id" value="">
       <div class="field-row">
         <div class="field">
           <label>Lokalizacja / miejsce</label>

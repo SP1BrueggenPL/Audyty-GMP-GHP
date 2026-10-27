@@ -1,9 +1,22 @@
+import math
+
 from django.conf import settings
 from django.db import models
 from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import Department
+
+
+def round_percent(value):
+    """Wynik w procentach zawsze jako liczba całkowita, zaokrąglana "w górę od 0,5"
+    (74,5 -> 75). Wbudowane round() zaokrągla połówki do parzystej (74,5 -> 74)."""
+    return int(math.floor(value + 0.5))
+
+
+# Opis zastępczy dla niezgodności utworzonej od zdjęcia, zanim audytor wpisał opis -
+# dzięki temu zdjęcie nigdy nie jest odrzucane tylko dlatego, że brakuje tekstu.
+NC_PLACEHOLDER_DESCRIPTION = "(opis do uzupełnienia)"
 
 
 def nc_counts_against_shift(responsible_person, inspection_shift):
@@ -22,6 +35,7 @@ def nc_counts_against_shift(responsible_person, inspection_shift):
 class AreaCode(models.TextChoices):
     """Typ checklisty / obszaru, dla którego audytor wybiera formularz."""
     WCE_WPP = "WCE_WPP", "WCE/WPP - Produkcja i Pakownia"
+    MIX = "MIX", "MIX - Miksowanie"
     WLS = "WLS", "WLS - Magazyn"
     WED = "WED", "WED - Dział techniczny"
 
@@ -199,7 +213,7 @@ class Inspection(models.Model):
         total_max = self.max_points_total
         if not total_max:
             return None
-        return round(100 * self.points_total / total_max, 1)
+        return round_percent(100 * self.points_total / total_max)
 
     @property
     def nonconformity_count(self):
@@ -226,7 +240,7 @@ class InspectionSectionResult(models.Model):
     def percent(self):
         if not self.section.max_points:
             return None
-        return round(100 * self.points_awarded / self.section.max_points, 1)
+        return round_percent(100 * self.points_awarded / self.section.max_points)
 
 
 class ItemResult(models.TextChoices):

@@ -9,7 +9,7 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 
 from .forms import derive_department
-from .models import Inspection, NCStatus, NonConformity
+from .models import Inspection, NCStatus, NonConformity, round_percent
 
 MONTH_LABELS = ["Sty", "Lut", "Mar", "Kwi", "Maj", "Cze", "Lip", "Sie", "Wrz", "Paź", "Lis", "Gru"]
 SHIFT_ORDER = ["A", "B", "C", "D", "n/d"]
@@ -153,7 +153,7 @@ def _build_overview_tab(qs, year):
             continue
         score_by_month[insp.inspected_at.month].append(pct)
     score_trend_values = [
-        round(sum(score_by_month[m]) / len(score_by_month[m]), 1) if score_by_month.get(m) else None
+        round_percent(sum(score_by_month[m]) / len(score_by_month[m])) if score_by_month.get(m) else None
         for m in range(1, 13)
     ]
 
@@ -214,16 +214,16 @@ def _build_results_tab(base_nc_qs, scope, department, year):
             for m in range(1, 13):
                 vals = by_dept_shift_month.get(dept, {}).get((shift, m), [])
                 if vals:
-                    avg = round(sum(vals) / len(vals), 1)
+                    avg = round_percent(sum(vals) / len(vals))
                     months.append(_score_cell(avg))
                     row_values.append(avg)
                     dept_values.append(avg)
                 else:
                     months.append(_score_cell(None))
-            year_avg = round(sum(row_values) / len(row_values), 1) if row_values else None
+            year_avg = round_percent(sum(row_values) / len(row_values)) if row_values else None
             shift_rows.append({"shift": shift, "months": months, "year_avg": _score_cell(year_avg)})
 
-        department_avg = round(sum(dept_values) / len(dept_values), 1) if dept_values else None
+        department_avg = round_percent(sum(dept_values) / len(dept_values)) if dept_values else None
         department_avg = _score_cell(department_avg)
 
         # Liczba niezgodności wg kwartału, porównanie lat

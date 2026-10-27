@@ -12,6 +12,7 @@ AREA_DETAIL_CHOICES = {
         ("WPP - PAKOWNIA", "WPP - Pakownia"),
         ("KONFEKCJONOWANIE", "Konfekcjonowanie"),
     ],
+    AreaCode.MIX: [("MIKSOWANIE", "MIX - Miksowanie")],
     AreaCode.WLS: [("WLS", "WLS - Magazyn")],
     AreaCode.WED: [("DZIAŁ TECHNICZNY", "Dział techniczny (WED)")],
 }
@@ -36,6 +37,8 @@ def derive_department(area_code, area_detail):
         if "KONFEKCJ" in area_detail:
             return Department.KONF
         return Department.WPP if "WPP" in area_detail else Department.WCE
+    if area_code == AreaCode.MIX:
+        return Department.KONF
     if area_code == AreaCode.WLS:
         return Department.WLS
     if area_code == AreaCode.WED:

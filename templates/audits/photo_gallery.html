@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Galeria zdjęć{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Galeria zdjęć</h1><p>Wszystkie zdjęcia niezgodności zapisane w aplikacji ({{ page.paginator.count }}).</p></div>
+</div>
+
+<form method="get" class="card" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:end;">
+  <div class="field" style="min-width:180px;">
+    <label>Dział</label>
+    <select name="department" onchange="this.form.submit()">
+      <option value="">Wszystkie</option>
+      {% for value, label in department_choices %}
+      <option value="{{ value }}" {% if current_department == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field" style="min-width:120px;">
+    <label>Rok</label>
+    <select name="year" onchange="this.form.submit()">
+      <option value="">Wszystkie</option>
+      {% for y in years %}<option value="{{ y }}" {% if current_year == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>{% endfor %}
+    </select>
+  </div>
+  <noscript><button type="submit" class="btn btn-outline btn-sm">Filtruj</button></noscript>
+</form>
+
+<div class="card">
+  {% if page.object_list %}
+  <div class="gallery-grid">
+    {% for p in page.object_list %}
+    <div class="gallery-item">
+      <a href="{{ p.image.url }}" class="lightbox-link" data-lightbox="gallery"
+         data-caption="{{ p.nonconformity.number }} · {{ p.nonconformity.checklist_point_label }} · {{ p.nonconformity.inspection_date|date:'d.m.Y' }}">
+        <img src="{{ p.image.url }}" loading="lazy" alt="Zdjęcie niezgodności {{ p.nonconformity.number }}">
+      </a>
+      <div class="gallery-meta">
+        <a href="{% url 'nonconformity_detail' p.nonconformity.pk %}"><strong>{{ p.nonconformity.number }}</strong></a><br>
+        {{ p.nonconformity.inspection_date|date:"d.m.Y" }} · {{ p.nonconformity.department }}
+        {% if p.kind == "DOWOD" %}<br><span class="muted">dowód działań</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if page.has_other_pages %}
+  <p style="margin-top:1rem;display:flex;gap:1rem;align-items:center;">
+    {% if page.has_previous %}<a class="btn btn-outline btn-sm" href="?page={{ page.previous_page_number }}&department={{ current_department }}&year={{ current_year }}">← Nowsze</a>{% endif %}
+    <span class="muted">Strona {{ page.number }} z {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a class="btn btn-outline btn-sm" href="?page={{ page.next_page_number }}&department={{ current_department }}&year={{ current_year }}">Starsze →</a>{% endif %}
+  </p>
+  {% endif %}
+  {% else %}
+  <p class="muted">Brak zdjęć dla wybranych filtrów.</p>
+  {% endif %}
+</div>
+{% endblock %}

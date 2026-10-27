@@ -17,18 +17,265 @@ document.addEventListener("DOMContentLoaded", function () {
   if (!form) return;
 
   var MAX_PHOTOS = 10;
+  var DRAFT_MODE = form.dataset.autosave === "1";
+  var uploadUrl = form.dataset.uploadUrl;
+  var photoDeleteUrl = form.dataset.photoDeleteUrl;
 
-  // ---- 1a) Akumulator zdjęć (max 10) - "multiple" na inpucie typu file ---
-  // NIE działa dobrze z capture="environment" na tabletach/telefonach: każde
-  // wywołanie aparatu NADPISUJE poprzednią selekcję zamiast ją uzupełniać.
-  // Ten kod gromadzi pliki z kolejnych wywołań w osobnej tablicy i za każdym
-  // razem odtwarza input.files (przez DataTransfer) tak, żeby zwykły submit
-  // formularza (i cała logika po stronie serwera) działały bez zmian.
-  function enhancePhotoInput(input) {
-    if (input.dataset.photoEnhanced === "1") return;
-    input.dataset.photoEnhanced = "1";
+  // ---- 0) Jedna kolejka żądań zapisu -----------------------------------------
+  // Autozapis tekstu i wysyłka zdjęć idą PO KOLEI, nigdy równolegle - dzięki temu
+  // id niezgodności zwrócone przez serwer trafia do formularza, zanim wystartuje
+  // następne żądanie (równoległe żądania mogłyby utworzyć tę samą niezgodność dwa razy).
+  var netQueue = Promise.resolve();
+  var netPending = 0;
+  function enqueue(task) {
+    netPending++;
+    netQueue = netQueue.then(task).catch(function () {}).then(function () { netPending--; });
+    return netQueue;
+  }
+  function whenIdle() {
+    return netQueue.then(function () { return netPending > 0 ? whenIdle() : null; });
+  }
+  function csrfToken() {
+    var el = form.querySelector('input[name="csrfmiddlewaretoken"]');
+    return el ? el.value : "";
+  }
+  function fieldValue(name) {
+    var el = form.querySelector('[name="' + name + '"]');
+    return el ? el.value : "";
+  }
+  function readJson(response) {
+    return response.json().then(
+      function (data) { return { status: response.status, data: data }; },
+      function () {
+        return {
+          status: response.status,
+          data: {
+            ok: false, saved: false,
+            error: "Serwer zwrócił nieoczekiwaną odpowiedź (HTTP " + response.status + "). " +
+              "Sesja mogła wygasnąć - odśwież stronę i zaloguj się ponownie (dane i zdjęcia zapisane wcześniej zostają).",
+          },
+        };
+      }
+    );
+  }
+
+  // ---- 1a) Zdjęcia niezgodności (max 10) ---------------------------------------
+  // WERSJA ROBOCZA (draft): każde zdjęcie jest wysyłane na serwer OD RAZU po
+  // zrobieniu, osobnym, małym żądaniem - z widocznym statusem przy miniaturze,
+  // automatycznym ponawianiem po utracie połączenia i ręcznym przyciskiem "Ponów".
+  // Zdjęcie jest zapisane w inspekcji (i w galerii aplikacji) zanim audytor
+  // zacznie robić następne - nic nie czeka "na koniec w jednym wielkim zapisie".
+  function photoSlot(input) {
+    var m = /^(item_(\d+)_nc-(\d+))-photos$/.exec(input.name);
+    if (m) return { kind: "item", itemId: m[2], prefix: m[1] };
+    m = /^(extra-(\d+))-photos$/.exec(input.name);
+    if (m) return { kind: "extra", itemId: "", prefix: m[1] };
+    return null;
+  }
+
+  function downloadFiles(files) {
+    files.forEach(function (f) {
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(f);
+      a.download = f.name || "zdjecie.jpg";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+  }
+
+  function enhancePhotoInputDraft(input) {
+    var slot = photoSlot(input);
+    if (!slot || !uploadUrl) return false;
+    var existing = parseInt(input.dataset.existingPhotos || "0", 10) || 0;
+    var entries = [];
+    input._entries = entries;
+
+    var wrap = document.createElement("div");
+    wrap.className = "photo-upload-wrap";
+    input.insertAdjacentElement("afterend", wrap);
+    var thumbsEl = document.createElement("div");
+    thumbsEl.className = "photo-thumbs";
+    var countEl = document.createElement("div");
+    countEl.className = "muted photo-count";
+    var shareRow = document.createElement("div");
+    shareRow.className = "photo-share-row";
+    var shareBtn = document.createElement("button");
+    shareBtn.type = "button";
+    shareBtn.className = "btn btn-outline btn-sm";
+    shareBtn.textContent = "💾 Zapisz kopię w galerii urządzenia";
+    var shareHint = document.createElement("span");
+    shareHint.className = "muted";
+    shareHint.style.marginLeft = ".5rem";
+    shareHint.textContent = "w oknie udostępniania wybierz „Zapisz obraz” (przeglądarka nie pozwala zrobić tego automatycznie)";
+    shareRow.appendChild(shareBtn);
+    shareRow.appendChild(shareHint);
+    wrap.appendChild(thumbsEl);
+    wrap.appendChild(countEl);
+    wrap.appendChild(shareRow);
+
+    function render() {
+      thumbsEl.innerHTML = "";
+      var saved = 0;
+      entries.forEach(function (entry) {
+        if (entry.status === "saved") saved++;
+        var item = document.createElement("div");
+        item.className = "photo-thumb is-" + entry.status;
+        var img = document.createElement("img");
+        img.src = entry.serverUrl || entry.url;
+        item.appendChild(img);
+
+        var badge = document.createElement("div");
+        badge.className = "photo-badge";
+        badge.textContent = entry.status === "saved" ? "✓ zapisane"
+          : entry.status === "error" ? "⚠ nie zapisane" : "⟳ zapisuję…";
+        item.appendChild(badge);
+
+        if (entry.status === "error") {
+          var msg = document.createElement("div");
+          msg.className = "photo-error";
+          msg.textContent = entry.error || "Nie udało się zapisać.";
+          item.appendChild(msg);
+          var retry = document.createElement("button");
+          retry.type = "button";
+          retry.className = "photo-retry";
+          retry.textContent = "↻ Ponów";
+          retry.addEventListener("click", function () { entry.attempts = 0; upload(entry); });
+          item.appendChild(retry);
+        }
+
+        var rm = document.createElement("button");
+        rm.type = "button";
+        rm.className = "photo-thumb-remove";
+        rm.textContent = "✕";
+        rm.addEventListener("click", function () { removeEntry(entry); });
+        item.appendChild(rm);
+        thumbsEl.appendChild(item);
+      });
+      countEl.textContent = (existing + entries.length) + " / " + MAX_PHOTOS + " zdjęć" +
+        (entries.length ? " · zapisane w inspekcji: " + saved + " z " + entries.length + " nowych" : "");
+      shareRow.style.display = entries.length ? "" : "none";
+    }
+
+    function fail(entry, status, message) {
+      entry.status = "error";
+      entry.error = message || "Nie udało się zapisać zdjęcia.";
+      // Błędy sieci/serwera (5xx) ponawiamy same; błędy 4xx (np. plik odrzucony) - tylko ręcznie.
+      var retryable = status === 0 || status >= 500;
+      var delays = [3000, 8000, 20000];
+      if (retryable && entry.attempts < delays.length) {
+        var delay = delays[entry.attempts];
+        entry.attempts++;
+        setTimeout(function () {
+          if (!entry.cancelled && entry.status === "error") upload(entry);
+        }, delay);
+      }
+    }
+
+    function upload(entry) {
+      entry.status = "queued";
+      render();
+      enqueue(function () {
+        if (entry.cancelled || !document.body.contains(input)) return null;
+        entry.status = "uploading";
+        render();
+
+        var fd = new FormData();
+        fd.append("photo", entry.file, entry.file.name || "foto.jpg");
+        fd.append("kind", slot.kind);
+        var idField = form.querySelector('input[name="' + slot.prefix + '-id"]');
+        if (idField && idField.value) fd.append("nc_id", idField.value);
+        fd.append("item_id", slot.kind === "item" ? slot.itemId : fieldValue(slot.prefix + "-item"));
+        fd.append("description", fieldValue(slot.prefix + "-description"));
+        fd.append("location", fieldValue(slot.prefix + "-location"));
+        fd.append("responsible", fieldValue(slot.prefix + "-responsible"));
+
+        return fetch(uploadUrl, {
+          method: "POST", body: fd, headers: { "X-CSRFToken": csrfToken() }, credentials: "same-origin",
+        })
+          .then(readJson)
+          .then(function (res) {
+            if (res.data.ok) {
+              if (idField) idField.value = res.data.nc_id;
+              entry.status = "saved";
+              entry.photoId = res.data.photo_id;
+              entry.serverUrl = res.data.url;
+            } else {
+              fail(entry, res.status, res.data.error);
+            }
+          })
+          .catch(function () { fail(entry, 0, "Brak połączenia - zdjęcie zostanie wysłane ponownie."); })
+          .then(render);
+      });
+    }
+
+    function removeEntry(entry) {
+      if (entry.status === "saved" && entry.photoId) {
+        if (!confirm("Usunąć to zdjęcie z inspekcji?")) return;
+        enqueue(function () {
+          return fetch(photoDeleteUrl.replace("/0/", "/" + entry.photoId + "/"), {
+            method: "POST", headers: { "X-CSRFToken": csrfToken() }, credentials: "same-origin",
+          })
+            .then(readJson)
+            .then(function (res) {
+              if (res.data.ok) {
+                entries.splice(entries.indexOf(entry), 1);
+              } else {
+                alert(res.data.error || "Nie udało się usunąć zdjęcia.");
+              }
+              render();
+            })
+            .catch(function () { alert("Brak połączenia - nie udało się usunąć zdjęcia."); });
+        });
+        return;
+      }
+      entry.cancelled = true;
+      entries.splice(entries.indexOf(entry), 1);
+      render();
+    }
+
+    shareBtn.addEventListener("click", function () {
+      var files = entries.map(function (e) { return e.file; }).filter(Boolean);
+      if (!files.length) return;
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: files })) {
+        navigator.share({ files: files }).catch(function (err) {
+          if (err && err.name !== "AbortError") downloadFiles(files);
+        });
+      } else {
+        downloadFiles(files);
+      }
+    });
+
+    input.addEventListener("change", function () {
+      var incoming = Array.prototype.slice.call(input.files || []);
+      input.value = ""; // pliki przejmuje lista "entries" - pole zostaje puste, żeby ten sam plik dało się wybrać ponownie
+      var room = MAX_PHOTOS - existing - entries.length;
+      if (incoming.length > room) {
+        alert("Można dodać maksymalnie " + MAX_PHOTOS + " zdjęć do jednej niezgodności.");
+      }
+      incoming.slice(0, Math.max(room, 0)).forEach(function (f) {
+        var entry = { file: f, url: URL.createObjectURL(f), status: "queued", attempts: 0 };
+        entries.push(entry);
+        upload(entry);
+      });
+      render();
+    });
+
+    // Do podpowiedzi AI - pierwsze zdjęcie z tego pola (pole "files" jest puste).
+    input._firstFile = function () {
+      var e = entries.filter(function (x) { return x.file; })[0];
+      return e ? e.file : null;
+    };
+
+    render();
+    return true;
+  }
+
+  // WERSJA ZAPISANA (edycja ukończonej inspekcji): zwykły formularz - akumulator
+  // plików (kolejne wywołania aparatu NADPISUJĄ selekcję w input[type=file], więc
+  // zbieramy je w tablicy i odtwarzamy input.files przez DataTransfer).
+  function enhancePhotoInputLegacy(input) {
     var files = [];
-    var uploaded = new Set(); // pliki już zapisane przez autozapis - nie wysyłamy ich ponownie
 
     var wrap = document.createElement("div");
     wrap.className = "photo-upload-wrap";
@@ -81,19 +328,14 @@ document.addEventListener("DOMContentLoaded", function () {
       render();
     });
 
-    // Zaczepy dla silnika autozapisu (patrz sekcja 4 niżej) - pozwalają wysłać
-    // do zapisu tylko NOWE, jeszcze niezapisane zdjęcia z tego pola, a potem
-    // odtworzyć pełny akumulator plików bez utraty tych, które user dopiero
-    // co dodał, ale jeszcze nie zostały potwierdzone jako zapisane.
-    input._draftPending = function () {
-      return files.filter(function (f) { return !uploaded.has(f); });
-    };
-    input._draftMarkUploaded = function (list) {
-      list.forEach(function (f) { uploaded.add(f); });
-    };
-    input._draftRestoreFull = rebuildInputFiles;
-
     render();
+  }
+
+  function enhancePhotoInput(input) {
+    if (input.dataset.photoEnhanced === "1") return;
+    input.dataset.photoEnhanced = "1";
+    if (DRAFT_MODE && enhancePhotoInputDraft(input)) return;
+    enhancePhotoInputLegacy(input);
   }
 
   // ---- 1b) Dyktowanie opisu niezgodności (Web Speech API) ----------------
@@ -454,7 +696,13 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
     }
+    var idField = block.querySelector('input[type="hidden"][name$="-id"]');
+    if (idField && idField.value) {
+      var deleted = document.getElementById("delete-nc-ids");
+      if (deleted) deleted.value = deleted.value ? deleted.value + "," + idField.value : idField.value;
+    }
     block.remove();
+    scheduleAutosave(1000);
   }
 
   function handleAiSuggest(btn) {
@@ -465,14 +713,16 @@ document.addEventListener("DOMContentLoaded", function () {
     var listEl = btn.closest(".item-nc-list");
     var itemId = (listEl && listEl.dataset.itemId) || btn.dataset.itemId || (photoInput && photoInput.dataset.itemId) || "";
 
-    if (!photoInput || !photoInput.files || !photoInput.files.length) {
-      statusEl.textContent = "Najpierw dodaj zdjęcie niezgodności.";
+    var firstPhoto = (photoInput && photoInput._firstFile && photoInput._firstFile()) ||
+      (photoInput && photoInput.files && photoInput.files[0]) || null;
+    if (!firstPhoto) {
+      statusEl.textContent = "Najpierw zrób zdjęcie niezgodności (w tej karcie przeglądarki).";
       return;
     }
 
     var fd = new FormData();
     fd.append("item_id", itemId);
-    fd.append("photo", photoInput.files[0]);
+    fd.append("photo", firstPhoto);
 
     statusEl.textContent = "Analizuję zdjęcie…";
     btn.disabled = true;
@@ -573,94 +823,106 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   // ---- 4) Autozapis wersji roboczej ---------------------------------------
-  // Tylko dla formularza wersji roboczej (data-autosave="1", patrz
-  // inspection_edit.html) - okresowo wysyła CAŁY formularz z flagą autosave=1
-  // do TEGO SAMEGO endpointu co zwykły zapis. Widok po stronie serwera
-  // aktualizuje istniejące rekordy (po ukrytych polach "...-id" zamiast
-  // tworzyć nowe za każdym razem) i zwraca ich id z powrotem - JS wpisuje je
-  // do pól "...-id", żeby KOLEJNY autozapis zaktualizował te same rekordy,
-  // a nie tworzył duplikatów. Zdjęcia wysyłane są tylko raz (patrz
-  // _draftPending/_draftMarkUploaded przy enhancePhotoInput powyżej).
-  if (form.dataset.autosave === "1") {
-    var autosaveStatusEl = document.getElementById("autosave-status");
-    var autosaveTimer = null;
-    var autosaveInFlight = false;
-    var autosaveQueued = false;
+  // Tylko dla formularza wersji roboczej (data-autosave="1"). Cały tekst formularza
+  // (bez zdjęć - te idą osobno, patrz 1a) wysyła się okresowo z flagą autosave=1.
+  // Serwer aktualizuje istniejące niezgodności po ukrytych polach "...-id" i zwraca
+  // ich id; JS wpisuje je do formularza, żeby KOLEJNY zapis zaktualizował te same
+  // rekordy. Autozapis niczego nie kasuje z domysłu (usuwa tylko jawnie usunięte -
+  // pole delete_nc_ids), więc ewentualny błąd nie może skasować zdjęć.
+  var autosaveStatusEl = document.getElementById("autosave-status");
+  var autosaveTimer = null;
+  var autosaveScheduled = false;
 
-    function setAutosaveStatus(text) {
-      if (autosaveStatusEl) autosaveStatusEl.textContent = text;
-    }
+  function setAutosaveStatus(text) {
+    if (autosaveStatusEl) autosaveStatusEl.textContent = text;
+  }
 
-    function runAutosave() {
-      if (autosaveInFlight) {
-        autosaveQueued = true;
-        return;
-      }
-      var photoInputs = Array.prototype.slice.call(form.querySelectorAll(".photo-input"));
-      var pendingBySlot = {};
-      photoInputs.forEach(function (inp) {
-        if (!inp._draftPending) return;
-        var pending = inp._draftPending();
-        if (!pending.length) return;
-        var dt = new DataTransfer();
-        pending.forEach(function (f) { dt.items.add(f); });
-        inp.files = dt.files;
-        pendingBySlot[inp.name] = pending;
-      });
-
-      var fd = new FormData(form);
-      fd.set("autosave", "1");
-
-      autosaveInFlight = true;
-      setAutosaveStatus("Zapisywanie…");
-
-      fetch(window.location.href, {
-        method: "POST", body: fd, headers: { "X-CSRFToken": csrfTokenInput.value },
+  function doAutosave() {
+    var fd = new FormData(form);
+    fd.set("autosave", "1");
+    setAutosaveStatus("Zapisywanie…");
+    return fetch(window.location.href, {
+      method: "POST", body: fd, headers: { "X-CSRFToken": csrfToken() }, credentials: "same-origin",
+    })
+      .then(readJson)
+      .then(function (res) {
+        var data = res.data;
+        if (data.saved) {
+          Object.keys(data.item_nc_ids || {}).forEach(function (itemId) {
+            var forItem = data.item_nc_ids[itemId];
+            Object.keys(forItem).forEach(function (i) {
+              var idField = form.querySelector('input[name="item_' + itemId + '_nc-' + i + '-id"]');
+              if (idField) idField.value = forItem[i];
+            });
+          });
+          Object.keys(data.extra_nc_ids || {}).forEach(function (i) {
+            var idField = form.querySelector('input[name="extra-' + i + '-id"]');
+            if (idField) idField.value = data.extra_nc_ids[i];
+          });
+          setAutosaveStatus("Zapisano automatycznie o " + data.saved_at + ".");
+        } else if (data.error) {
+          setAutosaveStatus("Nie udało się zapisać: " + data.error);
+        } else {
+          setAutosaveStatus("Uzupełnij datę i obszar inspekcji, aby włączyć autozapis.");
+        }
       })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          photoInputs.forEach(function (inp) { if (inp._draftRestoreFull) inp._draftRestoreFull(); });
-          if (data.saved) {
-            Object.keys(pendingBySlot).forEach(function (name) {
-              var inp = form.querySelector('.photo-input[name="' + name + '"]');
-              if (inp && inp._draftMarkUploaded) inp._draftMarkUploaded(pendingBySlot[name]);
-            });
-            Object.keys(data.item_nc_ids || {}).forEach(function (itemId) {
-              var forItem = data.item_nc_ids[itemId];
-              Object.keys(forItem).forEach(function (i) {
-                var idField = form.querySelector('input[name="item_' + itemId + '_nc-' + i + '-id"]');
-                if (idField) idField.value = forItem[i];
-              });
-            });
-            Object.keys(data.extra_nc_ids || {}).forEach(function (i) {
-              var idField = form.querySelector('input[name="extra-' + i + '-id"]');
-              if (idField) idField.value = data.extra_nc_ids[i];
-            });
-            setAutosaveStatus("Zapisano automatycznie o " + data.saved_at + ".");
-          } else {
-            setAutosaveStatus("Uzupełnij datę i obszar inspekcji, aby włączyć autozapis.");
-          }
-        })
-        .catch(function () {
-          photoInputs.forEach(function (inp) { if (inp._draftRestoreFull) inp._draftRestoreFull(); });
-          setAutosaveStatus("Brak połączenia - spróbuję zapisać ponownie za chwilę.");
-        })
-        .then(function () {
-          autosaveInFlight = false;
-          if (autosaveQueued) {
-            autosaveQueued = false;
-            runAutosave();
-          }
-        });
-    }
+      .catch(function () {
+        setAutosaveStatus("Brak połączenia - spróbuję zapisać ponownie za chwilę.");
+      });
+  }
 
-    function scheduleAutosave(delayMs) {
-      if (autosaveTimer) clearTimeout(autosaveTimer);
-      autosaveTimer = setTimeout(runAutosave, delayMs);
-    }
+  function requestAutosave() {
+    if (autosaveScheduled) return;
+    autosaveScheduled = true;
+    enqueue(function () {
+      autosaveScheduled = false;
+      return doAutosave();
+    });
+  }
 
+  function scheduleAutosave(delayMs) {
+    if (!DRAFT_MODE) return;
+    if (autosaveTimer) clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(requestAutosave, delayMs);
+  }
+
+  function photosNotSaved() {
+    var bad = [];
+    form.querySelectorAll(".photo-input").forEach(function (inp) {
+      (inp._entries || []).forEach(function (e) { if (e.status !== "saved") bad.push(e); });
+    });
+    return bad;
+  }
+
+  if (DRAFT_MODE) {
     form.addEventListener("input", function () { scheduleAutosave(4000); });
     form.addEventListener("change", function () { scheduleAutosave(2000); });
     setInterval(function () { scheduleAutosave(0); }, 45000);
+
+    // "Zakończ inspekcję": najpierw poczekaj, aż wszystkie zdjęcia i zapisy się skończą -
+    // inaczej zdjęcie, które jeszcze się wysyła, zginęłoby przy przejściu na kolejną stronę.
+    form.addEventListener("submit", function (e) {
+      if (form.dataset.submitReady === "1") return;
+      e.preventDefault();
+      setAutosaveStatus("Czekam, aż zapiszą się wszystkie zdjęcia…");
+      whenIdle().then(function () {
+        var bad = photosNotSaved();
+        if (bad.length) {
+          setAutosaveStatus("");
+          alert(bad.length + " zdjęć nie zostało jeszcze zapisanych (czerwone miniatury). " +
+            "Kliknij „Ponów” przy każdym z nich albo usuń je (✕), a potem zakończ inspekcję.");
+          return;
+        }
+        form.dataset.submitReady = "1";
+        form.submit();
+      });
+    });
+
+    window.addEventListener("beforeunload", function (e) {
+      if (photosNotSaved().length || netPending > 0) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    });
   }
 });

@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Case, Count, ProtectedError, When
+from django.core.paginator import Paginator
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -36,6 +37,7 @@ from .models import (
     ItemResult,
     NCStatus,
     NonConformity,
+    NC_PLACEHOLDER_DESCRIPTION,
     NonConformityPhoto,
     Shift,
     nc_counts_against_shift,
@@ -92,6 +94,29 @@ def _create_item_nc(inspection, item, section, department, area_rep_text, locati
         point_description=item.description[:400],
         location_detail=location,
         description=description,
+        responsible_person_id=responsible_id,
+    )
+
+
+def _resolve_extra_point(all_items, item_id):
+    """Dla "dodatkowej" niezgodności zwraca (item_id, numer punktu, opis punktu, kategoria);
+    gdy punktu nie wskazano lub nie istnieje - item_id None i pusta etykieta."""
+    if item_id:
+        chosen = next((it for it in all_items if str(it.id) == str(item_id)), None)
+        if chosen:
+            return chosen.id, chosen.number, chosen.description[:400], chosen.subsection.section.name
+    return None, "", "", ""
+
+
+def _create_extra_nc(inspection, department, area_rep_text, all_items, item_id, location, description, responsible_id):
+    item_id, point_label, point_desc, category = _resolve_extra_point(all_items, item_id)
+    return NonConformity.objects.create(
+        inspection=inspection, checklist_item_id=item_id, is_extra=True,
+        inspection_date=inspection.inspected_at.date(),
+        department=department, inspector=inspection.inspector, shift=inspection.shift,
+        area_representative=area_rep_text,
+        gmp_category=category, checklist_point_label=point_label or "Brak punktu odniesienia",
+        point_description=point_desc, location_detail=location, description=description,
         responsible_person_id=responsible_id,
     )
 
@@ -381,12 +406,18 @@ def inspection_edit(request, pk):
                                 prefix = f"item_{item.id}_nc-{i}-"
                                 existing_id = request.POST.get(prefix + "id") or None
                                 description = request.POST.get(prefix + "description", "").strip()
-                                if result != ItemResult.NC or not description:
+                                if result != ItemResult.NC:
                                     continue
                                 nc = (
                                     NonConformity.objects.filter(pk=existing_id, inspection=inspection).first()
                                     if existing_id else None
                                 )
+                                if not description:
+                                    if not nc:
+                                        continue
+                                    # Niezgodność już istnieje (np. powstała od zdjęcia) - nie kasujemy jej
+                                    # tylko dlatego, że opis jest jeszcze pusty.
+                                    description = NC_PLACEHOLDER_DESCRIPTION
                                 location = request.POST.get(prefix + "location", "").strip()
                                 responsible_id = request.POST.get(prefix + "responsible") or None
                                 if nc:
@@ -405,9 +436,10 @@ def inspection_edit(request, pk):
                                 for photo in request.FILES.getlist(prefix + "photos"):
                                     NonConformityPhoto.objects.create(nonconformity=nc, image=photo)
 
-                            NonConformity.objects.filter(
-                                inspection=inspection, checklist_item=item, is_extra=False,
-                            ).exclude(pk__in=kept_ids).delete()
+                            if not autosave:
+                                NonConformity.objects.filter(
+                                    inspection=inspection, checklist_item=item, is_extra=False,
+                                ).exclude(pk__in=kept_ids).delete()
 
                 # --- dodatkowe niezgodności (bez konkretnego punktu / dowolny wybrany punkt) ---
                 extra_total = int(request.POST.get("extra-TOTAL_FORMS", 0) or 0)
@@ -415,27 +447,20 @@ def inspection_edit(request, pk):
                 for i in range(extra_total):
                     prefix = f"extra-{i}-"
                     description = request.POST.get(prefix + "description", "").strip()
-                    if not description:
-                        continue
                     existing_id = request.POST.get(prefix + "id") or None
-                    item_id = request.POST.get(prefix + "item") or None
-                    responsible_id = request.POST.get(prefix + "responsible") or None
-                    location = request.POST.get(prefix + "location", "").strip()
-
-                    point_label, point_desc, category = "", "", ""
-                    if item_id:
-                        chosen_item = next((it for it in all_items if str(it.id) == item_id), None)
-                        if chosen_item:
-                            point_label = chosen_item.number
-                            point_desc = chosen_item.description[:400]
-                            category = chosen_item.subsection.section.name
-                        else:
-                            item_id = None
-
                     nc = (
                         NonConformity.objects.filter(pk=existing_id, inspection=inspection, is_extra=True).first()
                         if existing_id else None
                     )
+                    if not description:
+                        if not nc:
+                            continue
+                        description = NC_PLACEHOLDER_DESCRIPTION
+                    item_id = request.POST.get(prefix + "item") or None
+                    responsible_id = request.POST.get(prefix + "responsible") or None
+                    location = request.POST.get(prefix + "location", "").strip()
+                    item_id, point_label, point_desc, category = _resolve_extra_point(all_items, item_id)
+
                     if nc:
                         nc.checklist_item_id = item_id
                         nc.department = department
@@ -447,21 +472,22 @@ def inspection_edit(request, pk):
                         nc.responsible_person_id = responsible_id
                         nc.save()
                     else:
-                        nc = NonConformity.objects.create(
-                            inspection=inspection, checklist_item_id=item_id, is_extra=True,
-                            inspection_date=inspection.inspected_at.date(),
-                            department=department, inspector=inspection.inspector, shift=inspection.shift,
-                            area_representative=area_rep_text,
-                            gmp_category=category, checklist_point_label=point_label or "Brak punktu odniesienia",
-                            point_description=point_desc, location_detail=location, description=description,
-                            responsible_person_id=responsible_id,
+                        nc = _create_extra_nc(
+                            inspection, department, area_rep_text, all_items,
+                            item_id, location, description, responsible_id,
                         )
                     kept_extra_ids.add(nc.pk)
                     extra_nc_ids[str(i)] = nc.pk
                     for photo in request.FILES.getlist(prefix + "photos"):
                         NonConformityPhoto.objects.create(nonconformity=nc, image=photo)
 
-                inspection.nonconformities.filter(is_extra=True).exclude(pk__in=kept_extra_ids).delete()
+                if autosave:
+                    # Autozapis nigdy nie kasuje "z domysłu" - usuwa tylko niezgodności, które
+                    # użytkownik jawnie usunął przyciskiem (ich id wysyła JS w delete_nc_ids).
+                    explicit = [int(v) for v in request.POST.get("delete_nc_ids", "").split(",") if v.strip().isdigit()]
+                    inspection.nonconformities.filter(pk__in=explicit).delete()
+                else:
+                    inspection.nonconformities.filter(is_extra=True).exclude(pk__in=kept_extra_ids).delete()
 
                 # Punkty sekcji: każda niezgodność na punkcie checklisty odlicza wagę tego
                 # punktu, chyba że osoba odpowiedzialna jest z innej zmiany niż audytowana.
@@ -485,6 +511,13 @@ def inspection_edit(request, pk):
                     "nonconformity_count": inspection.nonconformity_count,
                 })
             messages.success(request, "Inspekcja zakończona i zapisana." if was_draft else "Inspekcja zaktualizowana.")
+            without_description = inspection.nonconformities.filter(description=NC_PLACEHOLDER_DESCRIPTION).count()
+            if without_description:
+                messages.warning(
+                    request,
+                    f"{without_description} niezgodności nie ma jeszcze opisu (same zdjęcia) - "
+                    "uzupełnij je w edycji inspekcji.",
+                )
             return redirect("inspection_detail", pk=inspection.pk)
         elif autosave:
             return JsonResponse({"saved": False, "errors": form.errors})
@@ -520,6 +553,121 @@ def inspection_edit(request, pk):
         "area_rep_ids_csv": area_rep_ids_csv,
         "wed_location_choices": WED_LOCATION_CHOICES,
         "is_draft": was_draft,
+    })
+
+
+MAX_PHOTOS_PER_NC = 10
+MAX_PHOTO_BYTES = 40 * 1024 * 1024
+
+
+@require_POST
+@login_required
+def inspection_photo_upload(request, pk):
+    """Zapisuje JEDNO zdjęcie od razu po jego zrobieniu (osobne, małe żądanie zamiast
+    wysyłania wszystkich zdjęć razem z całym formularzem). Jeśli niezgodność, do której
+    należy zdjęcie, jeszcze nie istnieje (audytor zrobił zdjęcie przed wpisaniem opisu),
+    jest tworzona z opisem zastępczym - zdjęcie nigdy nie jest odrzucane."""
+    inspection = get_object_or_404(Inspection, pk=pk)
+    if not request.user.has_full_access:
+        return JsonResponse({"ok": False, "error": "Brak uprawnień do tej inspekcji."}, status=403)
+
+    photo = request.FILES.get("photo")
+    if not photo:
+        return JsonResponse({"ok": False, "error": "Nie otrzymano pliku zdjęcia."}, status=400)
+    if photo.size > MAX_PHOTO_BYTES:
+        return JsonResponse({"ok": False, "error": "Zdjęcie jest zbyt duże (limit 40 MB)."}, status=413)
+    looks_like_image = (photo.content_type or "").startswith("image/") or \
+        photo.name.lower().endswith((".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp"))
+    if not looks_like_image:
+        return JsonResponse({"ok": False, "error": "To nie jest plik zdjęcia."}, status=400)
+
+    template = inspection.template
+    kind = request.POST.get("kind")
+    nc_id = request.POST.get("nc_id") or None
+    nc = NonConformity.objects.filter(pk=nc_id, inspection=inspection).first() if nc_id else None
+
+    with transaction.atomic():
+        if nc is None:
+            sections = list(template.sections.prefetch_related("subsections__items").all())
+            all_items = [it for sec in sections for sub in sec.subsections.all() for it in sub.items.all()]
+            department = derive_department(template.area_code, inspection.area_detail)
+            area_rep_text = ", ".join(str(u) for u in inspection.area_representatives.all())
+            description = request.POST.get("description", "").strip() or NC_PLACEHOLDER_DESCRIPTION
+            location = request.POST.get("location", "").strip()
+            responsible_id = request.POST.get("responsible") or None
+            if responsible_id and not str(responsible_id).isdigit():
+                responsible_id = None
+
+            if kind == "item":
+                item = get_object_or_404(
+                    ChecklistItem, pk=request.POST.get("item_id"), subsection__section__template=template,
+                )
+                nc = _create_item_nc(
+                    inspection, item, item.subsection.section, department, area_rep_text,
+                    location, description, responsible_id,
+                )
+                InspectionItemResult.objects.update_or_create(
+                    inspection=inspection, item=item, defaults={"result": ItemResult.NC},
+                )
+            else:
+                nc = _create_extra_nc(
+                    inspection, department, area_rep_text, all_items,
+                    request.POST.get("item_id") or None, location, description, responsible_id,
+                )
+
+        if nc.photos.count() >= MAX_PHOTOS_PER_NC:
+            return JsonResponse(
+                {"ok": False, "error": f"Maksymalnie {MAX_PHOTOS_PER_NC} zdjęć do jednej niezgodności."}, status=400,
+            )
+        saved = NonConformityPhoto.objects.create(nonconformity=nc, image=photo)
+
+    return JsonResponse({"ok": True, "nc_id": nc.pk, "photo_id": saved.pk, "url": saved.image.url})
+
+
+@require_POST
+@login_required
+def nc_photo_delete(request, pk):
+    photo = get_object_or_404(NonConformityPhoto.objects.select_related("nonconformity__inspection"), pk=pk)
+    inspection = photo.nonconformity.inspection
+    can_delete = request.user.is_admin_role or (
+        inspection is not None and inspection.status == InspectionStatus.DRAFT and request.user.has_full_access
+    )
+    if not can_delete:
+        return JsonResponse({"ok": False, "error": "Brak uprawnień do usunięcia tego zdjęcia."}, status=403)
+    photo.image.delete(save=False)
+    photo.delete()
+    return JsonResponse({"ok": True})
+
+
+@login_required
+def photo_gallery(request):
+    """Galeria wszystkich zdjęć niezgodności zapisanych w aplikacji (w zakresie działów
+    użytkownika) - niezależna od ekranu konkretnej inspekcji."""
+    nc_ids = _scoped_nonconformities(request.user).exclude(
+        inspection__status=InspectionStatus.DRAFT,
+    ).values("pk")
+    photos = NonConformityPhoto.objects.filter(nonconformity__in=nc_ids).select_related(
+        "nonconformity", "nonconformity__inspection",
+    )
+
+    department = request.GET.get("department", "")
+    if department:
+        photos = photos.filter(nonconformity__department=department)
+    year = request.GET.get("year", "")
+    if year.isdigit():
+        photos = photos.filter(nonconformity__inspection_date__year=int(year))
+    photos = photos.order_by("-nonconformity__inspection_date", "-uploaded_at")
+
+    page = Paginator(photos, 48).get_page(request.GET.get("page"))
+    scope = request.user.department_scope
+    return render(request, "audits/photo_gallery.html", {
+        "page": page,
+        "current_department": department,
+        "current_year": year,
+        "department_choices": [(c, l) for c, l in Department.choices if scope is None or c in scope],
+        "years": sorted(
+            set(NonConformity.objects.values_list("inspection_date__year", flat=True)), reverse=True,
+        ),
     })
 
 

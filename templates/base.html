@@ -18,6 +18,7 @@
     <a href="{% url 'inspection_type_select' %}" class="{% if request.resolver_match.url_name == 'inspection_type_select' or request.resolver_match.url_name == 'inspection_new' %}active{% endif %}">Nowa inspekcja</a>
     {% endif %}
     <a href="{% url 'nonconformity_list' %}" class="{% if 'nonconformity' in request.resolver_match.url_name %}active{% endif %}">Rejestr niezgodności</a>
+    <a href="{% url 'photo_gallery' %}" class="{% if request.resolver_match.url_name == 'photo_gallery' %}active{% endif %}">Galeria zdjęć</a>
     {% if user.can_view_reports %}
     <a href="{% url 'reports_dashboard' %}" class="{% if request.resolver_match.url_name == 'reports_dashboard' %}active{% endif %}">Raporty</a>
     {% endif %}
