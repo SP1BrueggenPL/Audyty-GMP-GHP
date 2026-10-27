@@ -19,17 +19,13 @@ def round_percent(value):
 NC_PLACEHOLDER_DESCRIPTION = "(opis do uzupełnienia)"
 
 
-def nc_counts_against_shift(responsible_person, inspection_shift):
-    """Niezgodność odejmuje punkty kontrolowanej zmianie, chyba że osoba
-    odpowiedzialna jest jawnie z INNEJ, konkretnej zmiany niż audytowana - wtedy
-    to jej zmiana odpowiada za problem, a nie zmiana objęta tym audytem.
-    Brak osoby odpowiedzialnej, brak jej zmiany, albo audyt bez konkretnej
-    zmiany (WED/Techniczny - "n/d") - liczy się tak jak dotychczas (odejmuje)."""
-    if not responsible_person or not responsible_person.shift:
-        return True
-    if inspection_shift not in ("A", "B", "C", "D"):
-        return True
-    return responsible_person.shift == inspection_shift
+def nc_deducts_points(responsible_person, representative_ids):
+    """Czy niezgodność odejmuje punkty od wyniku inspekcji.
+
+    Niezgodność przypisana do osoby z listy "Przedstawiciele obszaru" TEJ inspekcji
+    NIE odejmuje punktów - odejmuje dopiero niezgodność przypisana komuś spoza tej
+    listy (osobie odpowiedzialnej). Niezgodność bez przypisanej osoby odejmuje."""
+    return responsible_person is None or responsible_person.pk not in representative_ids
 
 
 class AreaCode(models.TextChoices):
@@ -165,6 +161,10 @@ class Inspection(models.Model):
     summary_good = models.TextField(blank=True, verbose_name="Podsumowanie - co było ok")
     summary_to_fix = models.TextField(blank=True, verbose_name="Podsumowanie - co do poprawki")
     comment = models.TextField(blank=True, verbose_name="Komentarz")
+    extra_penalty = models.PositiveSmallIntegerField(
+        null=True, blank=True, editable=False,
+        help_text="Zapisane odjęcie punktów za dodatkowe niezgodności (patrz extra_nc_penalty).",
+    )
     report_recipients = models.CharField(max_length=500, blank=True, help_text="Adresy e-mail rozdzielone przecinkiem")
     report_sent_at = models.DateTimeField(null=True, blank=True)
 
@@ -192,16 +192,25 @@ class Inspection(models.Model):
     def extra_nc_count(self):
         return self.nonconformities.filter(is_extra=True).count()
 
-    @property
-    def extra_nc_penalty(self):
-        """Suma wag punktowych dodatkowych niezgodności - waga punktu checklisty,
-        do którego są przypisane, albo 1 pkt dla niezgodności bez punktu odniesienia.
-        Pomija niezgodności przypisane osobie z innej zmiany niż audytowana."""
+    def compute_extra_nc_penalty(self):
+        """Suma wag punktowych dodatkowych niezgodności (waga punktu checklisty, do którego są
+        przypisane, albo 1 pkt dla niezgodności bez punktu odniesienia) - bez tych przypisanych
+        do przedstawicieli obszaru tej inspekcji."""
+        representative_ids = set(self.area_representatives.values_list("pk", flat=True))
         return sum(
             (nc.checklist_item.penalty_weight if nc.checklist_item_id else 1)
             for nc in self.nonconformities.filter(is_extra=True).select_related("checklist_item", "responsible_person")
-            if nc_counts_against_shift(nc.responsible_person, self.shift)
+            if nc_deducts_points(nc.responsible_person, representative_ids)
         )
+
+    @property
+    def extra_nc_penalty(self):
+        """Odjęcie za "dodatkowe" niezgodności - wartość ZAPISANA w chwili zapisu inspekcji
+        (extra_penalty), żeby późniejsza zmiana wag albo reguł nie zmieniała wyniku już
+        zapisanych inspekcji. Dla rekordów bez zapisanej wartości liczone na żywo."""
+        if self.extra_penalty is not None:
+            return self.extra_penalty
+        return self.compute_extra_nc_penalty()
 
     @property
     def points_total(self):

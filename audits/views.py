@@ -44,7 +44,7 @@ from .models import (
     NonConformityPhoto,
     PhotoArchive,
     Shift,
-    nc_counts_against_shift,
+    nc_deducts_points,
 )
 
 User = get_user_model()
@@ -127,19 +127,23 @@ def _create_extra_nc(inspection, department, area_rep_text, all_items, item_id, 
 
 def _recalculate_section_points(inspection):
     """Punkty sekcji: każda niezgodność na punkcie checklisty odlicza wagę tego punktu,
-    chyba że osoba odpowiedzialna jest z innej zmiany niż audytowana."""
+    chyba że jest przypisana do przedstawiciela obszaru tej inspekcji (patrz nc_deducts_points).
+    Zapisuje też odjęcie za "dodatkowe" niezgodności, żeby wynik był trwały."""
+    representative_ids = set(inspection.area_representatives.values_list("pk", flat=True))
     for section in inspection.template.sections.all():
         section_ncs = NonConformity.objects.filter(
             inspection=inspection, is_extra=False, checklist_item__subsection__section=section,
         ).select_related("checklist_item", "responsible_person")
         weight_sum = sum(
             nc.checklist_item.penalty_weight for nc in section_ncs
-            if nc_counts_against_shift(nc.responsible_person, inspection.shift)
+            if nc_deducts_points(nc.responsible_person, representative_ids)
         )
         InspectionSectionResult.objects.update_or_create(
             inspection=inspection, section=section,
             defaults={"points_awarded": max(0, section.max_points - weight_sum)},
         )
+    inspection.extra_penalty = inspection.compute_extra_nc_penalty()
+    inspection.save(update_fields=["extra_penalty"])
 
 
 def _ordered_nonconformities(qs):
