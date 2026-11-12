@@ -53,6 +53,7 @@
       </div>
       <div class="help-text">Kliknij osobę na liście „Dostępni”, aby ją dodać, albo ✕ przy osobie na liście „Wybrani”, aby ją usunąć. Punkty: niezgodność przypisana do osoby z rolą „Użytkownik obszaru” <strong>nie odejmuje punktów</strong> inspekcji; przypisana do osoby z rolą Pakownia/Produkcja, Techniczny lub Logistyka (albo bez przypisanej osoby) odejmuje.</div>
     </div>
+    {% if inspection.template.area_code != "WLS" %}
     <div class="field-row">
       <div class="field">{{ form.lines_working.label_tag }}{{ form.lines_working }}</div>
       <div class="field">{{ form.lines_not_working_cleaning.label_tag }}{{ form.lines_not_working_cleaning }}</div>
@@ -70,6 +71,7 @@
         </label>
         {% endfor %}
       </div>
+    {% endif %}
       {{ form.rooms_checked }}
     </div>
     {% endif %}
