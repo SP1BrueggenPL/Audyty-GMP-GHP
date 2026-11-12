@@ -8,9 +8,8 @@ User = get_user_model()
 
 AREA_DETAIL_CHOICES = {
     AreaCode.WCE_WPP: [
-        ("WCE - PRODUKCJA", "WCE - Produkcja"),
-        ("WPP - PAKOWNIA", "WPP - Pakownia"),
-        ("KONFEKCJONOWANIE", "Konfekcjonowanie"),
+        ("WCE - PRODUKCJA", "Produkcja"),
+        ("WPP - PAKOWNIA", "Pakownia"),
     ],
     AreaCode.MIX: [("MIKSOWANIE", "MIX - Miksowanie")],
     AreaCode.WLS: [("WLS", "WLS - Magazyn")],
@@ -143,6 +142,29 @@ class InspectionAdminEditForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["inspected_at"].input_formats = ["%Y-%m-%dT%H:%M"]
         self.fields["inspector"].queryset = User.objects.all().order_by("last_name", "first_name")
+        self._setup_area_detail()
+
+    def _setup_area_detail(self):
+        """Obszar jako lista rozwijana zależna od typu checklisty (Produkcja/Pakownia dla WCE+WPP,
+        jedna pozycja dla pozostałych). Wartość zapisana wcześniej, a spoza listy (stare inspekcje),
+        zostaje dodana do wyboru, żeby edycja jej nie gubiła. Autozapis dopuszcza brak wyboru."""
+        area_code = self.instance.template.area_code if self.instance and self.instance.template_id else None
+        choices = list(AREA_DETAIL_CHOICES.get(area_code, []))
+        current = self.instance.area_detail if self.instance else ""
+        if current and current not in [value for value, _label in choices]:
+            choices.append((current, current))
+        autosave = self.data.get("autosave") == "1" if self.is_bound else False
+        if len(choices) == 1:
+            required = False
+            blank = []
+            if not current:
+                self.initial["area_detail"] = choices[0][0]
+        else:
+            required = not autosave
+            blank = [("", "— wybierz obszar —")]
+        self.fields["area_detail"] = forms.ChoiceField(
+            label=self.fields["area_detail"].label, required=required, choices=blank + choices,
+        )
 
 
 class StandaloneNonConformityForm(forms.ModelForm):

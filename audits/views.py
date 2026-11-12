@@ -1,7 +1,7 @@
 import re
 from datetime import timedelta
 
-from accounts.models import Department, eligible_area_users
+from accounts.models import ROLE_DEPARTMENTS, Department, eligible_area_users
 from django import forms
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -327,7 +327,16 @@ def users_by_shift(request):
     department = derive_department(area_code, area_detail) if area_code else None
     effective_shift = shift if shift and shift != Shift.ND else None
     qs = eligible_area_users(department, effective_shift).filter(is_active=True).order_by("last_name", "first_name")
-    return JsonResponse({"users": [{"id": u.pk, "name": str(u)} for u in qs]})
+    # Domyślnie "Wybrani" (preselect): osoby z rolą działową pasującą do obszaru, a przy wybranej
+    # zmianie - tylko z tej zmiany. Pozostali kandydaci są "Dostępni" (do dodania kliknięciem).
+    dept_roles = [role for role, depts in ROLE_DEPARTMENTS.items() if department in depts] if department else []
+    return JsonResponse({"users": [
+        {
+            "id": u.pk, "name": str(u),
+            "preselect": u.role in dept_roles and (effective_shift is None or u.shift == effective_shift),
+        }
+        for u in qs
+    ]})
 
 
 @login_required

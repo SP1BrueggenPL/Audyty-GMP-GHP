@@ -31,7 +31,7 @@
     {% if form.non_field_errors %}<div class="errorlist">{{ form.non_field_errors }}</div>{% endif %}
     <div class="field-row">
       <div class="field">{{ form.inspected_at.label_tag }}{{ form.inspected_at }}{{ form.inspected_at.errors }}</div>
-      <div class="field">{{ form.area_detail.label_tag }}{{ form.area_detail }}</div>
+      <div class="field">{{ form.area_detail.label_tag }}{{ form.area_detail }}{{ form.area_detail.errors }}</div>
       {% if inspection.template.area_code == "WED" %}
       <input type="hidden" name="shift" value="n/d">
       {% else %}
@@ -60,9 +60,9 @@
       <div class="field">{{ form.lines_not_working_stopped.label_tag }}{{ form.lines_not_working_stopped }}</div>
       {% endif %}
     </div>
+    {% if inspection.template.area_code == "WED" %}
     <div class="field">
       {{ form.rooms_checked.label_tag }}
-      {% if inspection.template.area_code == "WED" %}
       <div id="rooms-checked-list" class="rep-list">
         {% for loc in wed_location_choices %}
         <label style="display:flex;align-items:center;gap:.4rem;font-weight:400;">
@@ -70,9 +70,9 @@
         </label>
         {% endfor %}
       </div>
-      {% endif %}
       {{ form.rooms_checked }}
     </div>
+    {% endif %}
   </div>
 
   <p class="help-text"><span class="req">*</span> Przy każdej niezgodności wymagane są: <strong>lokalizacja, osoba odpowiedzialna i opis</strong>. Zdjęcie jest opcjonalne.</p>

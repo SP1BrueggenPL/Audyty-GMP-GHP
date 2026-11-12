@@ -560,6 +560,9 @@ document.addEventListener("DOMContentLoaded", function () {
     : null;
 
   function refreshResponsibleSelects() {
+    // Gdy na liście "Wybrani" jest dokładnie jedna osoba, podpowiadamy ją jako osobę
+    // odpowiedzialną w niezgodnościach (zmiana ręczna na kogoś z puli nadal możliwa).
+    var onlyRep = selectedIds.size === 1 ? Array.from(selectedIds)[0] : "";
     document.querySelectorAll(".responsible-select").forEach(function (select) {
       // select.value na pusty string przy pierwszym renderze - w edycji istniejącej
       // niezgodności wracamy wtedy do zapisanej wcześniej osoby (data-selected).
@@ -574,8 +577,24 @@ document.addEventListener("DOMContentLoaded", function () {
       if (allCandidates.some(function (r) { return String(r.id) === previous; })) {
         select.value = previous;
       }
+      if (onlyRep && allCandidates.some(function (r) { return String(r.id) === onlyRep; })) {
+        var block = select.closest(".item-nc-block, .extra-nc-block") || select.parentElement;
+        var idField = block && block.querySelector('input[type="hidden"][name$="-id"]');
+        var isNew = !(idField && idField.value) && !select.dataset.selected;
+        if ((!select.value && isNew) || select.dataset.auto === "1") {
+          select.value = onlyRep;
+          select.dataset.auto = "1";
+        }
+      }
     });
   }
+
+  // Ręczny wybór osoby odpowiedzialnej wyłącza późniejsze automatyczne podmienianie.
+  form.addEventListener("change", function (e) {
+    if (e.target && e.target.classList && e.target.classList.contains("responsible-select")) {
+      delete e.target.dataset.auto;
+    }
+  });
 
   function renderDualList() {
     if (!repListEl) return;
@@ -661,7 +680,9 @@ document.addEventListener("DOMContentLoaded", function () {
           selectedIds = new Set(initialSelectedIds);
           initialSelectedIds = null;
         } else {
-          selectedIds = new Set(allCandidates.map(function (u) { return String(u.id); })); // domyślnie wszyscy zaznaczeni
+          // domyślnie wybrani: osoby z rolą działową z wybranej zmiany (reszta jako "Dostępni")
+          selectedIds = new Set(allCandidates.filter(function (u) { return u.preselect; })
+            .map(function (u) { return String(u.id); }));
         }
         renderDualList();
       })
