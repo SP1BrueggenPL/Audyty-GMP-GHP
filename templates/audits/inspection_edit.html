@@ -61,6 +61,7 @@
       <div class="field">{{ form.lines_not_working_stopped.label_tag }}{{ form.lines_not_working_stopped }}</div>
       {% endif %}
     </div>
+    {% endif %}
     {% if inspection.template.area_code == "WED" %}
     <div class="field">
       {{ form.rooms_checked.label_tag }}
@@ -71,7 +72,6 @@
         </label>
         {% endfor %}
       </div>
-    {% endif %}
       {{ form.rooms_checked }}
     </div>
     {% endif %}
