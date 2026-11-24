@@ -943,6 +943,7 @@ def inspection_delete(request, pk):
     if not is_own_draft and not _require_admin(request):
         return redirect("inspection_detail", pk=pk)
 
+    was_draft = inspection.status == InspectionStatus.DRAFT
     try:
         inspection.delete()
         messages.success(request, "Inspekcja i powiązane z nią niezgodności zostały usunięte.")
@@ -950,6 +951,10 @@ def inspection_delete(request, pk):
         messages.error(request, "Nie można usunąć tej inspekcji - jest powiązana z innymi danymi.")
         return redirect("inspection_detail", pk=pk)
 
+    # Usunięcie wersji roboczej (z ekranu "Wznów" albo z jej formularza) wraca na ekran "Wznów",
+    # a nie do rejestru inspekcji - tam wersje robocze w ogóle się nie pokazują.
+    if was_draft and request.user.can_run_inspections:
+        return redirect("inspection_drafts")
     return redirect("inspection_list")
 
 
