@@ -22,7 +22,7 @@
 </div>
 {% endif %}
 
-<form method="post" enctype="multipart/form-data" id="inspection-form" data-users-url="{% url 'users_by_shift' %}" data-suggest-url="{% url 'suggest_nonconformity' %}" data-area-code="{{ inspection.template.area_code }}" data-preselected-reps="{{ area_rep_ids_csv }}" data-photo-delete-url="{% url 'nc_photo_delete' 0 %}" data-move-url="{% url 'inspection_move_nc' inspection.pk %}" {% if is_draft %}data-autosave="1" data-upload-url="{% url 'inspection_photo_upload' inspection.pk %}"{% endif %}>
+<form method="post" enctype="multipart/form-data" id="inspection-form" data-users-url="{% url 'users_by_shift' %}" data-suggest-url="{% url 'suggest_nonconformity' %}" data-area-code="{{ inspection.template.area_code }}" data-preselected-reps="{{ area_rep_ids_csv }}" data-photo-delete-url="{% url 'nc_photo_delete' 0 %}" data-move-url="{% url 'inspection_move_nc' inspection.pk %}" {% if is_draft %}data-autosave="1" data-upload-url="{% url 'inspection_photo_upload' inspection.pk %}" data-attach-url="{% url 'inspection_photo_from_gallery' inspection.pk %}" data-gallery-url="{% url 'gallery_pick' %}"{% endif %}>
   {% csrf_token %}
   <input type="hidden" name="delete_nc_ids" id="delete-nc-ids" value="">
 
@@ -352,4 +352,4 @@
   </form>
 </div>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/checklist.js' %}"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/checklist.js' %}?v={% now 'U' %}"></script>{% endblock %}

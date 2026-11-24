@@ -1,8 +1,10 @@
+import os
 import re
 from datetime import timedelta
 
 from accounts.models import ROLE_DEPARTMENTS, Department, eligible_area_users
 from django import forms
+from django.core.files.base import ContentFile
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
@@ -16,7 +18,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from .ai import suggest_inspection_summary, suggest_nc_description
+from .ai import describe_corrective_actions, suggest_inspection_summary, suggest_nc_description
 from .email_acs import send_report_email
 from .pdf import render_inspection_pdf
 from .forms import (
@@ -536,6 +538,8 @@ def inspection_edit(request, pk):
                 if not autosave and not missing_required and was_draft and inspection.status == InspectionStatus.DRAFT:
                     inspection.status = InspectionStatus.SUBMITTED
                 inspection.save()
+                inspection_day = timezone.localtime(inspection.inspected_at).date()
+                inspection.nonconformities.exclude(inspection_date=inspection_day).update(inspection_date=inspection_day)
                 department = derive_department(template.area_code, inspection.area_detail)
 
                 rep_ids = [v for v in request.POST.getlist("area_rep_ids") if v]
@@ -707,6 +711,94 @@ MAX_PHOTOS_PER_NC = 10
 MAX_PHOTO_BYTES = 40 * 1024 * 1024
 
 
+def _nc_for_photo(request, inspection):
+    """Niezgodność, do której trafia zdjęcie: istniejąca (nc_id) albo - gdy audytor zrobił
+    zdjęcie przed wpisaniem opisu - nowa, z opisem zastępczym (zdjęcie nigdy nie jest odrzucane)."""
+    template = inspection.template
+    kind = request.POST.get("kind")
+    nc_id = request.POST.get("nc_id") or None
+    nc = NonConformity.objects.filter(pk=nc_id, inspection=inspection).first() if nc_id else None
+    if nc is not None:
+        return nc
+
+    sections = list(template.sections.prefetch_related("subsections__items").all())
+    all_items = [it for sec in sections for sub in sec.subsections.all() for it in sub.items.all()]
+    department = derive_department(template.area_code, inspection.area_detail)
+    area_rep_text = ", ".join(str(u) for u in inspection.area_representatives.all())
+    description = request.POST.get("description", "").strip() or NC_PLACEHOLDER_DESCRIPTION
+    location = request.POST.get("location", "").strip()
+    responsible_id = request.POST.get("responsible") or None
+    if responsible_id and not str(responsible_id).isdigit():
+        responsible_id = None
+
+    if kind == "item":
+        item = get_object_or_404(
+            ChecklistItem, pk=request.POST.get("item_id"), subsection__section__template=template,
+        )
+        nc = _create_item_nc(
+            inspection, item, item.subsection.section, department, area_rep_text,
+            location, description, responsible_id,
+        )
+        InspectionItemResult.objects.update_or_create(
+            inspection=inspection, item=item, defaults={"result": ItemResult.NC},
+        )
+    else:
+        nc = _create_extra_nc(
+            inspection, department, area_rep_text, all_items,
+            request.POST.get("item_id") or None, location, description, responsible_id,
+        )
+    return nc
+
+
+@require_POST
+@login_required
+def inspection_photo_from_gallery(request, pk):
+    """Dołącza do niezgodności inspekcji zdjęcie z galerii aplikacji (archiwum). Plik jest
+    KOPIOWANY, więc usunięcie zdjęcia z niezgodności nie rusza oryginału w galerii."""
+    inspection = get_object_or_404(Inspection, pk=pk)
+    if not request.user.has_full_access:
+        return JsonResponse({"ok": False, "error": "Brak uprawnień do tej inspekcji."}, status=403)
+    archived = get_object_or_404(PhotoArchive, pk=request.POST.get("archive_id"))
+    try:
+        source = archived.image.storage.open(archived.image.name, "rb")
+    except (FileNotFoundError, OSError, ValueError):
+        return JsonResponse({"ok": False, "error": "Nie znaleziono pliku tego zdjęcia."}, status=404)
+
+    with transaction.atomic(), source:
+        nc = _nc_for_photo(request, inspection)
+        if nc.photos.count() >= MAX_PHOTOS_PER_NC:
+            return JsonResponse(
+                {"ok": False, "error": f"Maksymalnie {MAX_PHOTOS_PER_NC} zdjęć do jednej niezgodności."}, status=400,
+            )
+        photo = NonConformityPhoto(nonconformity=nc, kind=NCPhotoKind.NIEZGODNOSC)
+        photo._skip_archive = True
+        photo.image.save(os.path.basename(archived.image.name), ContentFile(source.read()), save=False)
+        photo.save()
+    return JsonResponse({"ok": True, "nc_id": nc.pk, "photo_id": photo.pk, "url": photo.image.url})
+
+
+@login_required
+def gallery_pick(request):
+    """JSON: strona zdjęć z galerii do wyboru przy dodawaniu zdjęcia do niezgodności."""
+    if not request.user.has_full_access:
+        return JsonResponse({"ok": False, "error": "Brak uprawnień."}, status=403)
+    photos = PhotoArchive.objects.all()
+    scope = request.user.department_scope
+    if scope is not None:
+        photos = photos.filter(department__in=scope)
+    page = Paginator(photos, 24).get_page(request.GET.get("page"))
+    return JsonResponse({
+        "ok": True, "has_more": page.has_next(),
+        "photos": [{
+            "id": p.pk, "url": p.image.url,
+            "label": " · ".join(x for x in (
+                p.nc_number, f"pkt {p.point_label}" if p.point_label else "",
+                p.inspection_date.strftime("%d.%m.%Y") if p.inspection_date else "",
+            ) if x),
+        } for p in page],
+    })
+
+
 @require_POST
 @login_required
 def inspection_photo_upload(request, pk):
@@ -728,39 +820,8 @@ def inspection_photo_upload(request, pk):
     if not looks_like_image:
         return JsonResponse({"ok": False, "error": "To nie jest plik zdjęcia."}, status=400)
 
-    template = inspection.template
-    kind = request.POST.get("kind")
-    nc_id = request.POST.get("nc_id") or None
-    nc = NonConformity.objects.filter(pk=nc_id, inspection=inspection).first() if nc_id else None
-
     with transaction.atomic():
-        if nc is None:
-            sections = list(template.sections.prefetch_related("subsections__items").all())
-            all_items = [it for sec in sections for sub in sec.subsections.all() for it in sub.items.all()]
-            department = derive_department(template.area_code, inspection.area_detail)
-            area_rep_text = ", ".join(str(u) for u in inspection.area_representatives.all())
-            description = request.POST.get("description", "").strip() or NC_PLACEHOLDER_DESCRIPTION
-            location = request.POST.get("location", "").strip()
-            responsible_id = request.POST.get("responsible") or None
-            if responsible_id and not str(responsible_id).isdigit():
-                responsible_id = None
-
-            if kind == "item":
-                item = get_object_or_404(
-                    ChecklistItem, pk=request.POST.get("item_id"), subsection__section__template=template,
-                )
-                nc = _create_item_nc(
-                    inspection, item, item.subsection.section, department, area_rep_text,
-                    location, description, responsible_id,
-                )
-                InspectionItemResult.objects.update_or_create(
-                    inspection=inspection, item=item, defaults={"result": ItemResult.NC},
-                )
-            else:
-                nc = _create_extra_nc(
-                    inspection, department, area_rep_text, all_items,
-                    request.POST.get("item_id") or None, location, description, responsible_id,
-                )
+        nc = _nc_for_photo(request, inspection)
 
         if nc.photos.count() >= MAX_PHOTOS_PER_NC:
             return JsonResponse(
@@ -1021,6 +1082,10 @@ def nonconformity_list(request):
 @login_required
 def nonconformity_detail(request, pk):
     nc = get_object_or_404(NonConformity.objects.select_related("inspector", "responsible_person", "inspection"), pk=pk)
+    if nc.inspection_id and nc.inspection_date != timezone.localtime(nc.inspection.inspected_at).date():
+        # Data inspekcji zawsze pochodzi z inspekcji (np. po poprawieniu jej daty).
+        nc.inspection_date = timezone.localtime(nc.inspection.inspected_at).date()
+        nc.save(update_fields=["inspection_date"])
     is_admin = request.user.is_admin_role
     can_edit_responsible = (
         request.user == nc.responsible_person or _user_on_nc_shift(request.user, nc)
@@ -1039,9 +1104,17 @@ def nonconformity_detail(request, pk):
                     NonConformityPhoto.objects.create(nonconformity=nc, image=photo, kind="DOWOD")
                 # Samo otwarcie rekordu nie zmienia statusu - dopiero zapis z wpisanymi danymi.
                 entered = evidence or any(form.cleaned_data.get(f) for f in form.fields)
-                if nc.status == NCStatus.ZAREJESTROWANA and entered:
-                    nc.status = NCStatus.W_TOKU
-                    nc.save(update_fields=["status", "updated_at"])
+                if entered:
+                    update_fields = []
+                    if not nc.corrective_action_date:
+                        # Data podjęcia działań korekcyjnych wchodzi sama przy pierwszym zapisie danych.
+                        nc.corrective_action_date = timezone.localdate()
+                        update_fields.append("corrective_action_date")
+                    if nc.status == NCStatus.ZAREJESTROWANA:
+                        nc.status = NCStatus.W_TOKU
+                        update_fields.append("status")
+                    if update_fields:
+                        nc.save(update_fields=update_fields + ["updated_at"])
                 messages.success(request, "Działania zapisane. Dziękujemy za uzupełnienie.")
                 return redirect("nonconformity_detail", pk=nc.pk)
         elif action == "save_auditor" and can_edit_auditor:
@@ -1052,6 +1125,8 @@ def nonconformity_detail(request, pk):
                 return redirect("nonconformity_detail", pk=nc.pk)
         elif action == "save_admin_fields" and is_admin:
             admin_form = StandaloneNonConformityForm(request.POST, instance=nc)
+            if nc.inspection_id:
+                admin_form.fields["inspection_date"].disabled = True
             if admin_form.is_valid():
                 admin_form.save()
                 messages.success(request, "Dane niezgodności zaktualizowane.")
@@ -1062,6 +1137,8 @@ def nonconformity_detail(request, pk):
     responsible_form = ResponsibleActionForm(instance=nc)
     auditor_form = AuditorReviewForm(instance=nc)
     admin_form = StandaloneNonConformityForm(instance=nc)
+    if nc.inspection_id:
+        admin_form.fields["inspection_date"].disabled = True
 
     return render(request, "audits/nonconformity_detail.html", {
         "nc": nc,
@@ -1076,14 +1153,35 @@ def nonconformity_detail(request, pk):
 
 @require_POST
 @login_required
+def nonconformity_describe_actions(request, pk):
+    """AJAX: opis działań na podstawie zdjęć-dowodów (wybranych w formularzu albo już zapisanych)."""
+    nc = get_object_or_404(NonConformity, pk=pk)
+    allowed = (
+        request.user == nc.responsible_person or _user_on_nc_shift(request.user, nc)
+        or request.user.is_admin_role or request.user.is_staff
+    )
+    if not allowed:
+        return JsonResponse({"ok": False, "error": "Brak uprawnień do tej niezgodności."}, status=403)
+    photos = request.FILES.getlist("photos")
+    if not photos:
+        photos = [p.image.open("rb") for p in nc.photos.filter(kind=NCPhotoKind.DOWOD)[:4]]
+    result = describe_corrective_actions(photos, nc.description, nc.location_detail)
+    return JsonResponse(result)
+
+
+@require_POST
+@login_required
 def nonconformity_delete(request, pk):
     if not _require_admin(request):
         return redirect("nonconformity_detail", pk=pk)
 
     nc = get_object_or_404(NonConformity, pk=pk)
     number = nc.number
+    inspection_id = nc.inspection_id
     nc.delete()
     messages.success(request, f"Niezgodność {number} została usunięta.")
+    if request.POST.get("back") == "inspection" and inspection_id:
+        return redirect("inspection_detail", pk=inspection_id)
     return redirect("nonconformity_list")
 
 

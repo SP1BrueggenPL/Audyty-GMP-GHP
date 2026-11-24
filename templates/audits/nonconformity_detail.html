@@ -19,7 +19,7 @@
         {% csrf_token %}
         <input type="hidden" name="action" value="save_admin_fields">
         <div class="field-row">
-          <div class="field">{{ admin_form.inspection_date.label_tag }}{{ admin_form.inspection_date }}</div>
+          <div class="field">{{ admin_form.inspection_date.label_tag }}{{ admin_form.inspection_date }}{% if nc.inspection %}<div class="help-text">Pobierana automatycznie z inspekcji.</div>{% endif %}</div>
           <div class="field">{{ admin_form.department.label_tag }}{{ admin_form.department }}</div>
           <div class="field">{{ admin_form.shift.label_tag }}{{ admin_form.shift }}</div>
         </div>
@@ -78,17 +78,36 @@
       <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
         <input type="hidden" name="action" value="save_responsible">
-        <div class="field">{{ responsible_form.root_cause.label_tag }}{{ responsible_form.root_cause }}</div>
-        <div class="field">{{ responsible_form.corrective_action.label_tag }}{{ responsible_form.corrective_action }}</div>
+        <p class="help-text">Pola są zablokowane przed przypadkową zmianą - odznacz „🔒 zablokowane” przy polu, które chcesz wpisać lub poprawić. Data działań korekcyjnych wpisze się sama przy pierwszym zapisie danych.</p>
+        <div class="field lockable">
+          <div class="lock-head">{{ responsible_form.root_cause.label_tag }}<label class="lock-toggle"><input type="checkbox" class="lock-check" checked> 🔒 zablokowane</label></div>
+          {{ responsible_form.root_cause }}
+        </div>
+        <div class="field lockable">
+          <div class="lock-head">{{ responsible_form.corrective_action.label_tag }}<label class="lock-toggle"><input type="checkbox" class="lock-check" checked> 🔒 zablokowane</label></div>
+          {{ responsible_form.corrective_action }}
+        </div>
         <div class="field">{{ responsible_form.corrective_action_date.label_tag }}{{ responsible_form.corrective_action_date }}</div>
-        <div class="field">{{ responsible_form.preventive_action.label_tag }}{{ responsible_form.preventive_action }}</div>
+        <div class="field lockable">
+          <div class="lock-head">{{ responsible_form.preventive_action.label_tag }}<label class="lock-toggle"><input type="checkbox" class="lock-check" checked> 🔒 zablokowane</label></div>
+          {{ responsible_form.preventive_action }}
+        </div>
         <div class="field-row">
-          <div class="field">{{ responsible_form.planned_preventive_date.label_tag }}{{ responsible_form.planned_preventive_date }}</div>
-          <div class="field">{{ responsible_form.actual_preventive_date.label_tag }}{{ responsible_form.actual_preventive_date }}</div>
+          <div class="field lockable">
+          <div class="lock-head">{{ responsible_form.planned_preventive_date.label_tag }}<label class="lock-toggle"><input type="checkbox" class="lock-check" checked> 🔒 zablokowane</label></div>
+          {{ responsible_form.planned_preventive_date }}
+        </div>
+          <div class="field lockable">
+          <div class="lock-head">{{ responsible_form.actual_preventive_date.label_tag }}<label class="lock-toggle"><input type="checkbox" class="lock-check" checked> 🔒 zablokowane</label></div>
+          {{ responsible_form.actual_preventive_date }}
+        </div>
         </div>
         <div class="field">
           <label>Dowody podjętych działań (zdjęcie naprawy, lista obecności ze szkolenia...)</label>
-          <input type="file" name="evidence_photos" accept="image/*" multiple>
+          <input type="file" name="evidence_photos" id="evidence-photos" accept="image/*" multiple>
+          <button type="button" id="describe-actions-btn" class="btn btn-outline btn-sm" style="margin-top:.5rem;" data-url="{% url 'nonconformity_describe_actions' nc.pk %}">🤖 Opisz zdjęcia i uzupełnij działania (AI)</button>
+          <span id="describe-actions-status" class="muted" style="margin-left:.5rem;"></span>
+          <div class="help-text">AI opisze, co widać na wybranych zdjęciach (albo na już zapisanych dowodach), i wstawi to w pola działań. Zawsze sprawdź i popraw treść przed zapisem.</div>
         </div>
         <button type="submit" class="btn btn-primary btn-sm">Zapisz działania</button>
       </form>
@@ -124,8 +143,68 @@
   <p class="help-text">Usunięcie niezgodności jest nieodwracalne (wraz ze zdjęciami i zapisanymi działaniami).</p>
   <form method="post" action="{% url 'nonconformity_delete' nc.pk %}" onsubmit="return confirm('Na pewno usunąć niezgodność {{ nc.number }}? Tej operacji nie można cofnąć.');">
     {% csrf_token %}
+    {% if nc.inspection %}<input type="hidden" name="back" value="inspection">{% endif %}
     <button type="submit" class="btn btn-outline btn-sm" style="border-color:var(--coral);color:var(--coral);">🗑 Usuń niezgodność</button>
   </form>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  // Pola działań zablokowane tikiem (readonly - wartość nadal się wysyła, nic nie znika przy zapisie).
+  function applyLock(wrap) {
+    var check = wrap.querySelector(".lock-check");
+    var field = wrap.querySelector("textarea, input:not(.lock-check)");
+    if (!check || !field) return;
+    field.readOnly = check.checked;
+    field.classList.toggle("is-locked", check.checked);
+  }
+  document.querySelectorAll(".lockable").forEach(function (wrap) {
+    applyLock(wrap);
+    wrap.querySelector(".lock-check").addEventListener("change", function () { applyLock(wrap); });
+  });
+  function unlock(name) {
+    var field = document.querySelector('[name="' + name + '"]');
+    var wrap = field && field.closest(".lockable");
+    if (wrap) { wrap.querySelector(".lock-check").checked = false; applyLock(wrap); }
+  }
+
+  // AI: opis działań ze zdjęć dowodowych -> pola "działania korekcyjne"/"korygujące".
+  var btn = document.getElementById("describe-actions-btn");
+  if (!btn) return;
+  var statusEl = document.getElementById("describe-actions-status");
+  var fileInput = document.getElementById("evidence-photos");
+  var csrf = document.querySelector('input[name="csrfmiddlewaretoken"]');
+  function put(name, text) {
+    if (!text) return;
+    var field = document.querySelector('[name="' + name + '"]');
+    if (!field) return;
+    field.value = field.value.trim() ? field.value.trim() + "\n" + text : text;
+    unlock(name);
+  }
+  btn.addEventListener("click", function () {
+    var fd = new FormData();
+    Array.prototype.slice.call(fileInput.files || [], 0, 4).forEach(function (f) { fd.append("photos", f, f.name); });
+    btn.disabled = true;
+    statusEl.textContent = "AI analizuje zdjęcia…";
+    fetch(btn.dataset.url, { method: "POST", body: fd, headers: { "X-CSRFToken": csrf ? csrf.value : "" }, credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        btn.disabled = false;
+        if (data.corrective_action || data.preventive_action) {
+          put("corrective_action", data.corrective_action);
+          put("preventive_action", data.preventive_action);
+          statusEl.textContent = "Wstawiono opis z AI - sprawdź i popraw przed zapisem.";
+        } else if (data.available === false) {
+          statusEl.textContent = "Funkcja AI nie jest skonfigurowana (brak danych dostępowych Azure OpenAI).";
+        } else {
+          statusEl.textContent = data.error || "Nie udało się opisać zdjęć (wybierz zdjęcia lub zapisz wcześniej dowody).";
+        }
+      })
+      .catch(function () { btn.disabled = false; statusEl.textContent = "Błąd połączenia z usługą AI."; });
+  });
+})();
+</script>
 {% endblock %}

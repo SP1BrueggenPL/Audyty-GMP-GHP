@@ -429,7 +429,8 @@ class NonConformityPhoto(models.Model):
     def save(self, *args, **kwargs):
         adding = self._state.adding
         super().save(*args, **kwargs)
-        if adding:
+        # _skip_archive: zdjęcie skopiowane Z galerii aplikacji ma już swój wpis w archiwum.
+        if adding and not getattr(self, "_skip_archive", False):
             nc = self.nonconformity
             PhotoArchive.objects.create(
                 image=self.image.name, nonconformity=nc, inspection_id=nc.inspection_id,

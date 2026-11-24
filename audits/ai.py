@@ -241,3 +241,83 @@ def suggest_inspection_summary(nc_points, ok_count, total_count):
         return {"available": True, "summary_good": summary_good, "summary_to_fix": summary_to_fix, "error": None}
     except Exception as exc:  # noqa: BLE001 - podpowiedź AI nie może wywalić formularza
         return {"available": True, "summary_good": None, "summary_to_fix": None, "error": str(exc)}
+
+
+ACTIONS_PROMPT_TEMPLATE = """Jesteś asystentem w zakładzie produkcji spożywczej (GMP/GHP).
+Osoba odpowiedzialna dołączyła zdjęcia jako dowód podjętych działań w sprawie niezgodności.
+
+Opis niezgodności: {description}
+Lokalizacja: {location}
+
+Na podstawie zdjęć opisz po polsku, CO ZOSTAŁO ZROBIONE (stan po naprawie/sprzątaniu/usunięciu
+problemu). Opisuj tylko to, co faktycznie widać - nie wymyślaj przyczyn, dat ani osób. Nie opisuj
+ludzi (twarzy, wyglądu) - tylko rzeczy, urządzenia i pomieszczenia.
+
+Odpowiedz WYŁĄCZNIE w formacie:
+DZIALANIE: <co zostało zrobione w ramach działań korekcyjnych, 1-3 zdania>
+KORYGUJACE: <działania zapobiegające powtórzeniu, TYLKO jeśli wyraźnie je widać na zdjęciach, np. nowa osłona, oznakowanie; w przeciwnym razie "brak">
+Bez dodatkowych komentarzy, nagłówków ani markdown."""
+
+
+def _image_to_b64(fileobj, max_side=1280):
+    """Zmniejsza zdjęcie (mniej tokenów i szybsza odpowiedź); gdy się nie da - wysyła oryginał."""
+    raw = fileobj.read()
+    try:
+        import io
+        from PIL import Image
+        img = Image.open(io.BytesIO(raw))
+        img.thumbnail((max_side, max_side))
+        buf = io.BytesIO()
+        img.convert("RGB").save(buf, "JPEG", quality=85)
+        raw = buf.getvalue()
+    except Exception:  # noqa: BLE001 - np. HEIC bez obsługi: wysyłamy bajty bez zmian
+        pass
+    return base64.b64encode(raw).decode("utf-8")
+
+
+def describe_corrective_actions(photos, description="", location=""):
+    """Opis działań na podstawie zdjęć-dowodów. Zwraca dict
+    {available, corrective_action, preventive_action, error}; nigdy nie podnosi wyjątku."""
+    empty = {"available": True, "corrective_action": None, "preventive_action": None, "error": None}
+    if not _is_configured():
+        return dict(empty, available=False, error="Azure OpenAI nie jest skonfigurowane.")
+    if not photos:
+        return dict(empty, error="Brak zdjęć do opisania.")
+    try:
+        client = AzureOpenAI(
+            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+            api_key=settings.AZURE_OPENAI_KEY,
+            api_version=settings.AZURE_OPENAI_API_VERSION,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+            max_retries=1,
+        )
+        prompt = ACTIONS_PROMPT_TEMPLATE.format(
+            description=description or "(brak opisu)", location=location or "(brak)",
+        )
+        content = [{"type": "text", "text": prompt}]
+        for photo in photos[:4]:
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{_image_to_b64(photo)}"},
+            })
+        response = client.chat.completions.create(
+            model=settings.AZURE_OPENAI_DEPLOYMENT,
+            messages=[{"role": "user", "content": content}],
+            max_tokens=300,
+            temperature=0.3,
+        )
+        text = response.choices[0].message.content.strip()
+        corrective, preventive = None, None
+        for raw_line in text.splitlines():
+            line = raw_line.strip()
+            if line.upper().startswith("DZIALANIE:") or line.upper().startswith("DZIAŁANIE:"):
+                corrective = line.split(":", 1)[1].strip() or None
+            elif line.upper().startswith("KORYGUJACE:") or line.upper().startswith("KORYGUJĄCE:"):
+                value = line.split(":", 1)[1].strip()
+                if value and value.lower().strip(". ") not in ("brak", "-"):
+                    preventive = value
+        if corrective is None and preventive is None:
+            corrective = text  # model nie trzymał się formatu - całość jako opis działań
+        return dict(empty, corrective_action=corrective, preventive_action=preventive)
+    except Exception as exc:  # noqa: BLE001 - AI nie może wywalić formularza
+        return dict(empty, error=str(exc))

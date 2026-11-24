@@ -753,3 +753,17 @@ table.nice td.score-bad { background: #FDEAEA; color: var(--coral); font-weight:
   background: var(--coral); color: var(--white); border-radius: var(--radius-sm); font-size: .92rem; line-height: 1.4;
 }
 .nc-required-banner ul { margin: .4rem 0 0 1.1rem; padding: 0; }
+
+/* Pola zablokowane tikiem (widok niezgodności) */
+.lock-head { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
+.lock-toggle { font-weight: 400; font-size: .85rem; color: var(--charcoal); white-space: nowrap; cursor: pointer; }
+.lock-toggle input { width: auto; margin-right: .25rem; }
+textarea.is-locked, input.is-locked { background: #EEEAEA; color: #7a747a; cursor: not-allowed; }
+
+/* Wybór zdjęcia z galerii aplikacji */
+.gallery-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: .5rem; max-height: 55vh; overflow: auto; margin: .75rem 0; }
+.gallery-pick-item { position: relative; border: 3px solid transparent; border-radius: 8px; overflow: hidden; cursor: pointer; background: #f3eded; }
+.gallery-pick-item img { display: block; width: 100%; height: 100px; object-fit: cover; }
+.gallery-pick-item .cap { font-size: .7rem; padding: .15rem .3rem; color: var(--charcoal); }
+.gallery-pick-item.is-picked { border-color: var(--claret); }
+.gallery-pick-item.is-picked::after { content: "✓"; position: absolute; top: 4px; right: 6px; background: var(--claret); color: #fff; border-radius: 50%; width: 20px; height: 20px; text-align: center; line-height: 20px; font-size: .8rem; }

@@ -19,6 +19,8 @@ document.addEventListener("DOMContentLoaded", function () {
   var MAX_PHOTOS = 10;
   var DRAFT_MODE = form.dataset.autosave === "1";
   var uploadUrl = form.dataset.uploadUrl;
+  var attachUrl = form.dataset.attachUrl;
+  var galleryUrl = form.dataset.galleryUrl;
   var photoDeleteUrl = form.dataset.photoDeleteUrl;
   var moveUrl = form.dataset.moveUrl;
 
@@ -85,6 +87,94 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  // Okno wyboru zdjęć z galerii aplikacji (archiwum). Zwraca Promise z listą wybranych {id, url}.
+  function pickFromGallery(maxCount) {
+    return new Promise(function (resolve) {
+      var picked = [];
+      var page = 1;
+      var overlay = document.createElement("div");
+      overlay.className = "choice-overlay";
+      var box = document.createElement("div");
+      box.className = "choice-box";
+      box.setAttribute("role", "dialog");
+      box.setAttribute("aria-modal", "true");
+      box.style.maxWidth = "760px";
+      var h = document.createElement("h3");
+      h.textContent = "Zdjęcia z galerii aplikacji";
+      var info = document.createElement("p");
+      info.className = "choice-text";
+      var grid = document.createElement("div");
+      grid.className = "gallery-pick-grid";
+      var more = document.createElement("button");
+      more.type = "button";
+      more.className = "btn btn-outline btn-sm";
+      more.textContent = "Pokaż starsze";
+      more.style.display = "none";
+      var actions = document.createElement("div");
+      actions.className = "choice-actions";
+      var cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className = "btn btn-outline";
+      cancel.textContent = "Anuluj";
+      var ok = document.createElement("button");
+      ok.type = "button";
+      ok.className = "btn btn-primary";
+      actions.appendChild(cancel);
+      actions.appendChild(ok);
+      box.appendChild(h);
+      box.appendChild(info);
+      box.appendChild(grid);
+      box.appendChild(more);
+      box.appendChild(actions);
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+
+      function refresh() {
+        info.textContent = "Dotknij zdjęcia, aby je zaznaczyć (maks. " + maxCount + "). Zdjęcie zostanie skopiowane do tej niezgodności.";
+        ok.textContent = "Dodaj wybrane (" + picked.length + ")";
+        ok.disabled = !picked.length;
+      }
+      function close(result) { overlay.remove(); resolve(result); }
+      cancel.addEventListener("click", function () { close([]); });
+      ok.addEventListener("click", function () { close(picked); });
+
+      function load() {
+        more.disabled = true;
+        fetch(galleryUrl + "?page=" + page, { credentials: "same-origin" })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            more.disabled = false;
+            if (!data.ok) { info.textContent = data.error || "Nie udało się wczytać galerii."; return; }
+            if (page === 1 && !data.photos.length) { grid.innerHTML = '<span class="muted">Galeria jest pusta.</span>'; }
+            data.photos.forEach(function (p) {
+              var tile = document.createElement("div");
+              tile.className = "gallery-pick-item";
+              var img = document.createElement("img");
+              img.src = p.url;
+              img.loading = "lazy";
+              var cap = document.createElement("div");
+              cap.className = "cap";
+              cap.textContent = p.label || "";
+              tile.appendChild(img);
+              tile.appendChild(cap);
+              tile.addEventListener("click", function () {
+                var idx = picked.findIndex(function (x) { return x.id === p.id; });
+                if (idx >= 0) { picked.splice(idx, 1); tile.classList.remove("is-picked"); }
+                else if (picked.length < maxCount) { picked.push({ id: p.id, url: p.url }); tile.classList.add("is-picked"); }
+                refresh();
+              });
+              grid.appendChild(tile);
+            });
+            more.style.display = data.has_more ? "" : "none";
+          })
+          .catch(function () { more.disabled = false; info.textContent = "Brak połączenia - nie udało się wczytać galerii."; });
+      }
+      more.addEventListener("click", function () { page++; load(); });
+      refresh();
+      load();
+    });
+  }
+
   function enhancePhotoInputDraft(input) {
     var slot = photoSlot(input);
     if (!slot || !uploadUrl) return false;
@@ -111,6 +201,15 @@ document.addEventListener("DOMContentLoaded", function () {
     shareHint.textContent = "w oknie udostępniania wybierz „Zapisz obraz” (przeglądarka nie pozwala zrobić tego automatycznie)";
     shareRow.appendChild(shareBtn);
     shareRow.appendChild(shareHint);
+    var galleryBtn = null;
+    if (galleryUrl && attachUrl) {
+      galleryBtn = document.createElement("button");
+      galleryBtn.type = "button";
+      galleryBtn.className = "btn btn-outline btn-sm";
+      galleryBtn.style.marginTop = ".4rem";
+      galleryBtn.textContent = "🖼 Dodaj zdjęcie z galerii aplikacji";
+      wrap.appendChild(galleryBtn);
+    }
     wrap.appendChild(thumbsEl);
     wrap.appendChild(countEl);
     wrap.appendChild(shareRow);
@@ -182,7 +281,8 @@ document.addEventListener("DOMContentLoaded", function () {
         render();
 
         var fd = new FormData();
-        fd.append("photo", entry.file, entry.file.name || "foto.jpg");
+        if (entry.archiveId) fd.append("archive_id", entry.archiveId);
+        else fd.append("photo", entry.file, entry.file.name || "foto.jpg");
         fd.append("kind", slot.kind);
         var idField = form.querySelector('input[name="' + slot.prefix + '-id"]');
         if (idField && idField.value) fd.append("nc_id", idField.value);
@@ -191,7 +291,7 @@ document.addEventListener("DOMContentLoaded", function () {
         fd.append("location", fieldValue(slot.prefix + "-location"));
         fd.append("responsible", fieldValue(slot.prefix + "-responsible"));
 
-        return fetch(uploadUrl, {
+        return fetch(entry.archiveId ? attachUrl : uploadUrl, {
           method: "POST", body: fd, headers: { "X-CSRFToken": csrfToken() }, credentials: "same-origin",
         })
           .then(readJson)
@@ -261,6 +361,24 @@ document.addEventListener("DOMContentLoaded", function () {
       });
       render();
     });
+
+    if (galleryBtn) {
+      galleryBtn.addEventListener("click", function () {
+        var room = MAX_PHOTOS - existingCount() - entries.length;
+        if (room <= 0) {
+          alert("Można dodać maksymalnie " + MAX_PHOTOS + " zdjęć do jednej niezgodności.");
+          return;
+        }
+        pickFromGallery(room).then(function (picked) {
+          picked.forEach(function (p) {
+            var entry = { archiveId: p.id, url: p.url, serverUrl: p.url, status: "queued", attempts: 0 };
+            entries.push(entry);
+            upload(entry);
+          });
+          render();
+        });
+      });
+    }
 
     input._render = render;
 

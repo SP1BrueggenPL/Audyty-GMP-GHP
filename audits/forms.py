@@ -90,9 +90,9 @@ class ResponsibleActionForm(forms.ModelForm):
             "root_cause": forms.Textarea(attrs={"rows": 3}),
             "corrective_action": forms.Textarea(attrs={"rows": 3}),
             "preventive_action": forms.Textarea(attrs={"rows": 3}),
-            "corrective_action_date": forms.DateInput(attrs={"type": "date"}),
-            "planned_preventive_date": forms.DateInput(attrs={"type": "date"}),
-            "actual_preventive_date": forms.DateInput(attrs={"type": "date"}),
+            "corrective_action_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "planned_preventive_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "actual_preventive_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
         }
 
 
@@ -178,7 +178,7 @@ class StandaloneNonConformityForm(forms.ModelForm):
             "description", "responsible_person",
         ]
         widgets = {
-            "inspection_date": forms.DateInput(attrs={"type": "date"}),
+            "inspection_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "description": forms.Textarea(attrs={"rows": 3}),
         }
 
