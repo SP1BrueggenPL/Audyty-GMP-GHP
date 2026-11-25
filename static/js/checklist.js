@@ -1376,6 +1376,9 @@ document.addEventListener("DOMContentLoaded", function () {
     problems.slice(0, 15).forEach(function (p) {
       var li = document.createElement("li");
       li.textContent = p.text;
+      li.style.cursor = "pointer";
+      li.title = "Przejdź do tej niezgodności";
+      li.addEventListener("click", function () { p.block.scrollIntoView({ behavior: "smooth", block: "center" }); });
       ul.appendChild(li);
     });
     if (problems.length > 15) {
@@ -1383,6 +1386,14 @@ document.addEventListener("DOMContentLoaded", function () {
       more.textContent = "…i " + (problems.length - 15) + " kolejnych.";
       ul.appendChild(more);
     }
+    var closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "nc-required-close";
+    closeBtn.setAttribute("aria-label", "Zamknij komunikat");
+    closeBtn.title = "Zamknij";
+    closeBtn.textContent = "×";
+    closeBtn.addEventListener("click", function () { banner.remove(); });
+    banner.appendChild(closeBtn);
     banner.appendChild(head);
     banner.appendChild(ul);
     problems[0].block.scrollIntoView({ behavior: "smooth", block: "center" });
